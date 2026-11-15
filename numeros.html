@@ -6,10 +6,6 @@
 <title>Era da Matemática — Os números do Egito</title>
 <link rel="stylesheet" href="estilo.css">
 <style>
-.etapas{display:flex;gap:6px;align-items:center}
-.etapas span{width:28px;height:28px;border-radius:50%;border:2px solid var(--borda);background:#d8c08a;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:#7a6440}
-.etapas span.feita{background:var(--verde);color:#fff;border-color:#2c5a18}
-.etapas span.atual{background:var(--ouro);color:#fff}
 .simbolos{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
 .simbolo{background:#fff7e0;border:2px solid var(--borda);border-radius:10px;padding:10px 6px;text-align:center}
 .simbolo .glifos svg{height:44px}
@@ -20,88 +16,165 @@
 .paleta button{background:#fff7e0;color:var(--tinta);border-color:var(--borda);display:flex;align-items:center;gap:6px;padding:6px 10px}
 .paleta button .glifos svg{height:30px}
 .bandeja{min-height:64px;background:#d9b878;border:2px dashed var(--borda);border-radius:10px;padding:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px}
-.opcoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-.opcoes button{font-size:22px;min-width:90px}
 .zonas{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 .zona{border:2px dashed var(--borda);border-radius:10px;padding:8px;min-height:110px;background:var(--papiro2)}
 .zona h3{margin:0 0 6px;font-size:14px}
 .zona .itens{display:flex;flex-wrap:wrap;gap:4px;align-items:flex-end}
-.simb{background:#fff7e0;border:1px solid var(--borda);border-radius:6px;padding:3px 4px;cursor:pointer;line-height:0;color:var(--tinta);font:inherit}
+.simb{background:#fff7e0;border:1px solid var(--borda);border-radius:6px;padding:3px 4px;cursor:pointer;line-height:0;color:var(--tinta);font:inherit;display:flex;align-items:center;gap:2px}
 .simb svg{height:30px;display:block}
+.simb .n{line-height:1;font-size:14px;font-weight:bold}
 .trocas{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .trocas button{font-size:13px;padding:5px 9px}
 .passo{font-size:13px;color:#6d5430;margin:0}
+#bolsa .glifos svg{height:24px}
+#bolsa .x{font-weight:bold;margin:0 6px 0 1px}
+.obra{display:flex;gap:6px;align-items:center}
+.obra span{padding:3px 8px;border-radius:12px;border:2px solid var(--borda);background:#d8c08a;font-size:13px;font-weight:bold;color:#6d5430}
+.obra span.feita{background:var(--verde);color:#fff;border-color:#2c5a18}
+.obra span.atual{background:var(--ouro);color:#fff}
+#etiquetas{position:absolute;inset:0;pointer-events:none}
+.etq{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;background:#f7ead0;border:2px solid var(--borda);border-radius:8px;padding:4px 8px;text-align:center;font-size:12px;font-weight:bold;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.3);white-space:nowrap}
+.etq .glifos svg{height:24px}
+.etq:hover{background:#fff3cf}
+.etq.sumida{display:none}
+.etq.brilha{animation:brilho 1s ease-in-out infinite alternate}
 </style>
 </head>
 <body>
 <div class="tela">
   <canvas id="tela"></canvas>
+  <div id="etiquetas"></div>
   <div class="hud">
-    <div class="painel num"><span>🧱 Tijolos</span><span class="v" id="v-tijolos">0</span></div>
-    <div class="painel num"><span>Etapas</span><div class="etapas" id="etapas"><span>1</span><span>2</span><span>3</span></div></div>
+    <div class="painel num"><span>🌾 Cargas de trigo</span><span class="v" id="v-cargas">0</span></div>
+    <div class="painel num" id="bolsa" title="Suas moedas de cobre"><span>👛 Bolsa</span><span id="g-bolsa"></span></div>
+    <div class="painel num"><span>Celeiro</span><div class="obra" id="obra"></div></div>
     <button class="sec direita" id="b-dica">💡 Dica do escriba</button>
     <button class="sec" id="b-vila">← Vila</button>
   </div>
-  <div class="painel objetivo" id="objetivo"></div>
+  <div class="painel objetivo" id="objetivo" style="top:116px"></div>
   <div class="painel fala" id="fala"><span class="quem"></span><span class="txt"></span></div>
   <div class="fundo-modal" id="fundo-modal"><div class="modal" id="modal"></div></div>
 </div>
 <script src="comum.js"></script>
 <script>
 'use strict';
+/* ===== AJUSTES ===== */
+const TEMPO_CARGA = 3;   // segundos para os aldeões colherem 1 carga de trigo
+const MAX_CARGAS = 5;    // cargas que cabem esperando venda
+const OBRA = [{nome:'a base', precisa:45}, {nome:'os silos', precisa:124}, {nome:'o telhado', precisa:230}];
+
 const $ = id => document.getElementById(id);
 let timerFala=null;
 function falar(quem,txt,seg=8){ const f=$('fala'); f.querySelector('.quem').textContent=quem; f.querySelector('.txt').innerHTML=txt; f.style.display='block'; clearTimeout(timerFala); timerFala=setTimeout(()=>f.style.display='none',seg*1000); }
 function objetivo(h){ $('objetivo').innerHTML=h; }
 function abrir(h){ $('modal').innerHTML=h; $('fundo-modal').style.display='flex'; $('modal').scrollTop=0; }
 function fechar(){ $('fundo-modal').style.display='none'; }
+const modalAberto = ()=>$('fundo-modal').style.display==='flex';
 function tremer(){ const m=$('modal'); m.classList.remove('treme'); void m.offsetWidth; m.classList.add('treme'); }
 $('b-vila').onclick=()=>location.href='egito.html';
 
 /* ===== Estado ===== */
-const E = { etapa:0, licaoVista:false, tijolos:0, alvo:null };
-function ganhar(n){ E.tijolos+=n; const v=$('v-tijolos'); v.textContent=E.tijolos; v.classList.remove('pop'); void v.offsetWidth; v.classList.add('pop'); cena.flutuar(celeiro.x+1,celeiro.y+1,`+${n} tijolos`,'#ffd09a'); }
-function renderEtapas(){ [...$('etapas').children].forEach((s,i)=>{ s.className = i<E.etapa?'feita': (i===E.etapa&&E.licaoVista)?'atual':''; }); }
+const E = { licaoVista:false, cargas:0, prodT:0, bolsa:{lotus:0,rolo:0,arco:0,traco:0}, estagio:0, colocados:0,
+  ofertas:[0,0], ofertaT:0, carroca:null, encomendou:false, acabou:false };
+const totalBolsa = ()=>valorDe(E.bolsa);
+function bolsaHTML(q){
+  let h=''; for(const t of ORDEM){ const n=q[t]; if(!n) continue;
+    h += n<=9 ? `<span class="glifos">${glifosHTML({[t]:n})}</span> ` : `<span class="glifos"><span class="g">${HIERO[t]}</span></span><span class="x">×${n}</span>`; }
+  return h || '<span class="glifos"><span class="vazio">vazia</span></span>';
+}
+function renderHud(){
+  $('v-cargas').textContent=E.cargas;
+  $('g-bolsa').innerHTML=bolsaHTML(E.bolsa);
+  $('obra').innerHTML=OBRA.map((o,i)=>`<span class="${i<E.estagio?'feita':i===E.estagio&&E.licaoVista?'atual':''}">${i<E.estagio?'✓ ':''}${o.nome.replace(/^(a|os|o) /,'')}</span>`).join('');
+}
+function renderObjetivo(){
+  if(!E.licaoVista){ objetivo('Clique no <b>escriba</b> (de colar dourado) para aprender como os egípcios escreviam números.'); return; }
+  if(E.acabou) return;
+  const o=OBRA[E.estagio], faltam=o.precisa-E.colocados;
+  objetivo(`<b>Obra do celeiro: ${o.nome}.</b> Faltam <b>${faltam}</b> tijolos (cada um custa 1 cobre).<br>`+
+    (E.carroca ? 'Os tijolos estão a caminho…' :
+     !E.encomendou && totalBolsa()<faltam ? 'Venda trigo ao mercador que paga <b>mais</b>. Leia os preços nas placas!' :
+     'Quando tiver cobre suficiente, clique no <b>oleiro</b> para encomendar os tijolos.'));
+}
 
 /* ===== Vila ===== */
-const cena = new Cena($('tela'), 12, 70);
+const cena = new Cena($('tela'), 12, 120);
 const tipo = (x,y)=> y<2?'agua': y===2?'margem':'areia';
-const cabana = {x:7, y:7, w:2, d:2};
-const celeiro = {x:3, y:6, w:2, d:2, prog:0, meta:0};
-const palmeiras = [{x:1.5,y:10.5},{x:10.5,y:4},{x:11,y:10},{x:2,y:3.6}];
-const escriba = {x:6.4, y:9.6};
-const visitante = {x:11.5, y:11.5, ativo:false, chegou:false, roupa:'#5b7fb5', nome:''};
+const campo = {x:1, y:3, w:4, d:3};
+const celeiro = {x:5, y:6, w:2, d:2, prog:0};
+const cabana = {x:8, y:3.5, w:2, d:2};
+const palmeiras = [{x:1.2,y:11},{x:11,y:6.5},{x:10.8,y:11},{x:6,y:3.4}];
+const escriba = {x:8.4, y:8.6};
+const mercadores = [{x:10.4, y:6.2, toldo:'#2f6fa0', roupa:'#5b7fb5'}, {x:6.2, y:10.6, toldo:'#a8321f', roupa:'#8a3a6a'}];
+const oleiro = {x:2.6, y:8.6, roupa:'#8a5a2a'};
+const aldeoes = [{x:3,y:5,ida:true,t:0},{x:2,y:4.5,ida:false,t:1.5}];
 
-$('tela').addEventListener('pointerdown',e=>{
-  if($('fundo-modal').style.display==='flex') return;
-  const [mx,my]=cena.ptJogo(e);
-  const perto=(a)=>{ const [sx,sy]=cena.p(a.x,a.y); return Math.hypot(mx-sx,my-(sy-16))<22; };
-  if(perto(escriba)){ if(!E.licaoVista) licao(0); else falar('Escriba', E.etapa<3?'Atenda o visitante de azul: ele precisa da sua ajuda com os números.':'Muito bem! Volte à vila.'); return; }
-  if(visitante.ativo && perto(visitante)){ if(visitante.chegou) abrirEtapa(); else falar('Escriba','Espere ele chegar mais perto.'); }
-});
+function barraca(m){
+  const b={x:m.x-0.45,y:m.y-0.45,w:0.9,d:0.9}; cena.sombra(b);
+  const k=cena.caixa(b,14,['#b8935f','#93734a','#d8bd8a']);
+  const top=[k.up(k.A),k.up(k.B),k.up(k.C),k.up(k.D)].map(q=>[q[0],q[1]-16]);
+  cena.ctx.strokeStyle='#6d441d'; cena.ctx.lineWidth=2; cena.ctx.beginPath(); for(const q of [k.A,k.B,k.C,k.D]){ cena.ctx.moveTo(q[0],q[1]-14); cena.ctx.lineTo(q[0],q[1]-30); } cena.ctx.stroke();
+  cena.poli(top,m.toldo);
+}
+function carroca(){
+  const c=E.carroca; if(!c) return; const ctx=cena.ctx;
+  const x=oleiro.x+(celeiro.x+1-oleiro.x)*c.k, y=oleiro.y+(celeiro.y+2.2-oleiro.y)*c.k, [sx,sy]=cena.p(x,y);
+  ctx.fillStyle='rgba(70,40,10,.25)'; ctx.beginPath(); ctx.ellipse(sx+3,sy+2,16,5,0,0,7); ctx.fill();
+  ctx.fillStyle='#8a5a2a'; ctx.fillRect(sx-14,sy-14,28,10); ctx.fillStyle='#b5562e'; for(let i=0;i<4;i++) ctx.fillRect(sx-12+i*6,sy-20,5,6);
+  ctx.fillStyle='#3b2a14'; ctx.beginPath(); ctx.arc(sx-9,sy-3,4,0,7); ctx.arc(sx+9,sy-3,4,0,7); ctx.fill();
+}
+function animarAldeoes(dt){
+  for(const a of aldeoes){
+    const alvo = a.ida ? [celeiro.x+0.6, celeiro.y+2.3] : [campo.x+1.5+Math.sin(a.t)*1, campo.y+1.5];
+    if(!E.licaoVista){ a.andando=false; a.trabalhando=false; continue; }
+    if(moverPara(a,alvo[0],alvo[1],1.4,dt)){ a.ida=!a.ida; }
+    a.carga = a.ida ? 1 : 0; a.tipoCarga='trigo';
+  }
+}
+/* etiquetas sobre a cena (placas clicáveis) */
+const ETQ = {
+  m0: {alvo:mercadores[0], alt:60, acao:()=>vender(0)},
+  m1: {alvo:mercadores[1], alt:60, acao:()=>vender(1)},
+  oleiro: {alvo:oleiro, alt:58, acao:()=>encomendar(), html:'🧱 Oleiro<br><small>encomendar tijolos</small>'},
+  escriba: {alvo:escriba, alt:58, acao:()=>clicarEscriba(), html:'Clique em mim!'}
+};
+for(const [id,e] of Object.entries(ETQ)){ const d=document.createElement('button'); d.className='etq'; d.type='button'; d.id='etq-'+id; d.onclick=()=>{ if(!modalAberto()) e.acao(); }; e.el=d; if(e.html) d.innerHTML=e.html; $('etiquetas').appendChild(d); }
+function posicionarEtiquetas(){
+  for(const e of Object.values(ETQ)){ const [sx,sy]=cena.p(e.alvo.x,e.alvo.y); e.el.style.left=(cena.ox+sx*cena.escala)+'px'; e.el.style.top=(cena.oy+(sy-e.alt)*cena.escala)+'px'; }
+  ETQ.escriba.el.classList.toggle('sumida', E.licaoVista);
+  for(const id of ['m0','m1','oleiro']) ETQ[id].el.classList.toggle('sumida', !E.licaoVista||E.acabou);
+  ETQ.oleiro.el.classList.toggle('brilha', E.licaoVista && !E.carroca && totalBolsa()>=OBRA[Math.min(E.estagio,2)].precisa-E.colocados);
+}
+function renderOfertas(){ for(const i of [0,1]) ETQ['m'+i].el.innerHTML=`<span class="glifos">${glifosHTML(E.ofertas[i])}</span><br><small>cobres por carga</small>`; }
 
 let ultimo=performance.now();
 function quadro(agora){
   const dt=Math.min(0.1,(agora-ultimo)/1000); ultimo=agora;
-  if(celeiro.prog<celeiro.meta) celeiro.prog=Math.min(celeiro.meta,celeiro.prog+dt/2);
-  if(visitante.ativo && !visitante.chegou){ if(moverPara(visitante,8.2,10.4,2.4,dt)) visitante.chegou=true; }
-  if(visitante.saindo){ if(moverPara(visitante,11.5,11.5,2.4,dt)){ visitante.saindo=false; visitante.ativo=false; } }
-  cena.comecar(dt); cena.chao(tipo);
-  if(celeiro.prog<=0) cena.contorno(celeiro,'rgba(120,80,40,.55)',2,[6,5]);
-  const ents=[{d:cabana.x+cabana.y+2,f:()=>cena.cabana(cabana)}];
-  if(celeiro.prog>0) ents.push({d:celeiro.x+celeiro.y+2,f:()=>cena.celeiro(celeiro,celeiro.prog)});
+  if(E.licaoVista && !E.acabou){
+    E.prodT+=dt; if(E.prodT>=TEMPO_CARGA){ E.prodT=0; if(E.cargas<MAX_CARGAS){ E.cargas++; renderHud(); cena.flutuar(celeiro.x+1,celeiro.y+2,'+1 carga','#ffd968'); } }
+    E.ofertaT+=dt; if(E.ofertaT>=12 && !modalAberto()){ novasOfertas(); }
+  }
+  if(E.carroca){ E.carroca.k=Math.min(1,E.carroca.k+dt/3.5); if(E.carroca.k>=1&&!E.carroca.chegou){ E.carroca.chegou=true; chegaramTijolos(); } }
+  const meta=(E.estagio+E.colocados/OBRA[Math.min(E.estagio,2)].precisa)/3;
+  if(celeiro.prog<meta) celeiro.prog=Math.min(meta,celeiro.prog+dt/2);
+  animarAldeoes(dt);
+  cena.comecar(dt); cena.chao(tipo); cena.campo(campo,1,true);
+  if(celeiro.prog<=0.01) cena.contorno(celeiro,'rgba(120,80,40,.55)',2,[6,5]);
+  const ents=[{d:cabana.x+cabana.y+2,f:()=>cena.cabana(cabana)},{d:celeiro.x+celeiro.y+2,f:()=>cena.celeiro(celeiro,Math.max(0.02,celeiro.prog))}];
   for(const p of palmeiras) ents.push({d:p.x+p.y,f:()=>cena.palmeira(p)});
-  ents.push({d:escriba.x+escriba.y,f:()=>cena.pessoa(escriba,'#f4efe2',{papiro:true,colar:'#c98a1b',balao:!E.licaoVista?'Clique em mim!':null})});
-  if(visitante.ativo) ents.push({d:visitante.x+visitante.y,f:()=>cena.pessoa(visitante,visitante.roupa,{longa:true,balao:visitante.chegou&&!visitante.atendido?'?':null})});
+  for(const m of mercadores){ ents.push({d:m.x+m.y-0.5,f:()=>barraca(m)}); ents.push({d:m.x+m.y+0.6,f:()=>cena.pessoa({x:m.x-0.1,y:m.y+0.75},m.roupa,{longa:true})}); }
+  ents.push({d:oleiro.x+oleiro.y,f:()=>{ cena.pessoa(oleiro,oleiro.roupa,{colar:'#b5562e'}); }});
+  ents.push({d:oleiro.x+oleiro.y-0.8,f:()=>{ const b={x:oleiro.x-1.3,y:oleiro.y-1.2,w:0.9,d:0.9}; cena.caixa(b,8,['#b5562e','#93452a','#cf7148']); }});
+  ents.push({d:escriba.x+escriba.y,f:()=>cena.pessoa(escriba,'#f4efe2',{papiro:true,colar:'#c98a1b'})});
+  for(const a of aldeoes) ents.push({d:a.x+a.y,f:()=>cena.pessoa(a,'#f4efe2')});
+  if(E.carroca) ents.push({d:99,f:carroca});
   ents.sort((a,b)=>a.d-b.d).forEach(e=>e.f());
-  if(!E.licaoVista) cena.seta(escriba.x,escriba.y,58);
-  else if(visitante.ativo&&visitante.chegou&&!visitante.atendido) cena.seta(visitante.x,visitante.y,66);
   cena.desenharFlutuantes(); cena.vinheta();
+  posicionarEtiquetas();
   requestAnimationFrame(quadro);
 }
-requestAnimationFrame(quadro);
 
-/* ===== Montador de números (clicar nos símbolos para desenhar um número) ===== */
+/* ===== Montador de números ===== */
 function montador(el, aoMudar){
   const q={lotus:0,rolo:0,arco:0,traco:0}, hist=[];
   el.innerHTML=`<div class="paleta">${ORDEM.map(t=>`<button type="button" data-t="${t}" aria-label="Adicionar ${NOME_SIMB[t]} (vale ${VALOR[t]})"><span class="glifos">${HIERO[t]}</span> ${VALOR[t]}</button>`).join('')}</div>
@@ -140,128 +213,146 @@ const LICAO = [
     <p>Clique nos desenhos para escrever o número <b>213</b> do jeito egípcio:</p>
     <div id="m-licao"></div><p class="aviso" id="av-licao"></p>`
 ];
+function clicarEscriba(){ if(!E.licaoVista) licao(0); }
 function licao(i){
-  const ultimo=i===LICAO.length-1;
+  const fim=i===LICAO.length-1;
   abrir(LICAO[i]()+`<p class="passo">Lição ${i+1} de ${LICAO.length}</p>
-    <div class="botoes">${i>0?'<button class="sec" id="b-ant">← Voltar</button>':''}<button id="b-prox">${ultimo?'Conferir':'Próximo →'}</button></div>`);
+    <div class="botoes">${i>0?'<button class="sec" id="b-ant">← Voltar</button>':''}<button id="b-prox">${fim?'Conferir':'Próximo →'}</button></div>`);
   if(i>0) $('b-ant').onclick=()=>licao(i-1);
-  if(!ultimo){ $('b-prox').onclick=()=>licao(i+1); return; }
-  let q=montador($('m-licao'),()=>{ $('av-licao').textContent=''; });
+  if(!fim){ $('b-prox').onclick=()=>licao(i+1); return; }
+  const q=montador($('m-licao'),()=>{ $('av-licao').textContent=''; });
   $('b-prox').onclick=()=>{
     const v=valorDe(q), av=$('av-licao');
     if(v===213 && canonico(q)){ av.className='aviso bom'; av.textContent='Isso! 2 rolos, 1 arco e 3 traços: 200 + 10 + 3 = 213.';
-      $('b-prox').textContent='Começar os desafios'; $('b-prox').onclick=()=>{ fechar(); E.licaoVista=true; renderEtapas(); iniciarEtapa(); }; }
+      $('b-prox').textContent='Ir para a vila'; $('b-prox').onclick=comecarJogo; }
     else { tremer(); av.className='aviso ruim'; av.textContent = v===213 ? 'O valor está certo, mas tem 10 ou mais desenhos iguais. Troque dez deles por um desenho maior.' : `Seu número vale ${v}. Precisamos de 213.`; }
   };
 }
+function comecarJogo(){
+  fechar(); E.licaoVista=true; novasOfertas(); renderHud(); renderObjetivo();
+  falar('Escriba','Vamos construir o celeiro! Os aldeões colhem o trigo. Você vende o trigo no mercado, compra tijolos do oleiro e paga com moedas de cobre. Aqui todos só entendem <b>hieróglifos</b>!',12);
+}
 
-/* ===== As três etapas ===== */
-const ETAPAS = [
-  {nome:'Mercador', roupa:'#5b7fb5', chegada:'Um mercador chegou com preços escritos em hieróglifos. Ajude a ler!',
-   objetivo:'<b>Etapa 1 · Ler:</b> clique no mercador de azul e descubra quanto vale cada preço.',
-   dica:['Comece pelos desenhos de maior valor e vá somando.','Cada arco vale 10 e cada traço vale 1. Conte os arcos de dez em dez: 10, 20, 30...']},
-  {nome:'Construtor', roupa:'#8a5a2a', chegada:'O construtor do celeiro precisa anotar as medidas no jeito egípcio.',
-   objetivo:'<b>Etapa 2 · Escrever:</b> clique no construtor e escreva os números com hieróglifos.',
-   dica:['Separe o número em milhares, centenas, dezenas e unidades.','Exemplo: 152 = 1 centena (1 rolo), 5 dezenas (5 arcos) e 2 unidades (2 traços).']},
-  {nome:'Vendedor de tijolos', roupa:'#3f7a26', chegada:'O vendedor de tijolos quer o pagamento exato. Às vezes vai ser preciso trocar!',
-   objetivo:'<b>Etapa 3 · Trocar:</b> clique no vendedor e pague o valor exato com a sua bolsa.',
-   dica:['Se faltar um desenho pequeno, troque um desenho maior: 1 arco vira 10 traços.','1 rolo vira 10 arcos, e 1 flor de lótus vira 10 rolos. Depois de trocar, mova para o pagamento.']}
-];
-const LER = [23, 132, 305, 1240];
-const ESCREVER = [34, 152, 1021];
-const TROCAR = [{tem:41,paga:17},{tem:203,paga:120},{tem:1005,paga:230}];
-let nivelDica=0;
-function iniciarEtapa(){
-  nivelDica=0; const et=ETAPAS[E.etapa];
-  Object.assign(visitante,{x:11.5,y:11.5,ativo:true,chegou:false,atendido:false,saindo:false,roupa:et.roupa});
-  falar('Escriba',et.chegada,8); objetivo(et.objetivo); renderEtapas();
+/* ===== Mercado (ler) ===== */
+const somaDigitos = n => String(n).split('').reduce((s,d)=>s+(+d),0);
+const sorteio = (a,b)=>a+Math.floor(Math.random()*(b-a+1));
+function novasOfertas(){
+  const faixa=[[12,60],[25,95],[90,260]][Math.min(E.estagio,2)];
+  let L,H,tent=0;
+  do{ L=sorteio(faixa[0],faixa[1]); H=L+sorteio(3,25); tent++; } while(somaDigitos(L)<=somaDigitos(H) && tent<200);
+  E.ofertas = Math.random()<0.5 ? [L,H] : [H,L]; E.ofertaT=0; renderOfertas();
 }
-$('b-dica').onclick=()=>{
-  if(!E.licaoVista){ falar('Escriba','Clique em mim, o escriba com o papiro, para começar a lição.'); return; }
-  if(E.etapa>=3){ falar('Escriba','Você já completou tudo. Volte à vila!'); return; }
-  const d=ETAPAS[E.etapa].dica; const n=Math.min(nivelDica,d.length-1); nivelDica++;
-  falar('Escriba','💡 '+d[n]+(n<d.length-1?' <small>(clique de novo para outra dica)</small>':''),12);
-};
-function abrirEtapa(){ [etapaLer,etapaEscrever,etapaTrocar][E.etapa](0); }
-function concluirEtapa(){
-  fechar(); visitante.atendido=true; visitante.saindo=true; E.etapa++; celeiro.meta=E.etapa/3; renderEtapas();
-  if(E.etapa<3){ falar('Escriba',`Etapa ${E.etapa} completa! O celeiro começou a subir.`,5); setTimeout(iniciarEtapa,2500); }
-  else setTimeout(final,2600);
+function vender(i){
+  if(E.cargas<1){ falar('Mercador','Não tem trigo para vender ainda. Espere os aldeões trazerem uma carga.',4); return; }
+  const preco=E.ofertas[i], outro=E.ofertas[1-i];
+  E.cargas--; const q=partes(preco); for(const t of ORDEM) E.bolsa[t]+=q[t];
+  cena.flutuar(mercadores[i].x,mercadores[i].y,`+${preco} cobres`,'#ffd09a');
+  if(outro>preco) falar('Mercador da outra barraca',`Que pena! Eu pagaria <span class="glifos">${glifosHTML(outro)}</span> por essa carga…`,6);
+  else falar('Mercador','Boa venda! Você escolheu o preço maior.',4);
+  novasOfertas(); renderHud(); renderObjetivo();
 }
-function cabecalho(titulo,i,total){ return `<h2>${titulo}</h2><p class="passo">Pergunta ${i+1} de ${total}</p>`; }
 
-/* Etapa 1: ler */
-function opcoesPara(n){
-  const u=n%10, d=Math.floor(n/10)%10, resto=n-u-d*10, cand=[resto+u*10+d, n+10, n+100, n-10, n*10].filter(v=>v>0&&v!==n);
-  const out=[n]; for(const c of cand){ if(!out.includes(c)) out.push(c); if(out.length===3) break; }
-  return out.sort(()=>Math.random()-0.5);
-}
-function etapaLer(i){
-  const n=LER[i];
-  abrir(cabecalho('O preço do mercador',i,LER.length)+`<p>Quanto vale este preço?</p><div class="placa glifos grande">${glifosHTML(n)}</div>
-    <div class="opcoes">${opcoesPara(n).map(v=>`<button data-v="${v}">${v}</button>`).join('')}</div><p class="aviso" id="av"></p>`);
-  document.querySelectorAll('.opcoes button').forEach(b=>b.onclick=()=>{
-    const v=+b.dataset.v, av=$('av');
-    if(v===n){ ganhar(5); av.className='aviso bom'; const q=partes(n);
-      av.textContent='Certo! '+ORDEM.filter(t=>q[t]).map(t=>`${q[t]} × ${VALOR[t]}`).join(' + ')+` = ${n}`;
-      document.querySelectorAll('.opcoes button').forEach(x=>x.disabled=true);
-      setTimeout(()=> i+1<LER.length ? etapaLer(i+1) : concluirEtapa(), 1600); }
-    else { tremer(); b.disabled=true; b.classList.add('sec'); av.className='aviso ruim'; av.textContent='Ainda não. Conte cada tipo de desenho e some os valores.'; }
-  });
-}
-/* Etapa 2: escrever */
-function etapaEscrever(i){
-  const n=ESCREVER[i];
-  abrir(cabecalho('As medidas do construtor',i,ESCREVER.length)+`<p>Escreva o número <b style="font-size:24px">${n}</b> com hieróglifos:</p><div id="m"></div><p class="aviso" id="av"></p>
-    <div class="botoes"><button id="b-ok">Pronto</button></div>`);
+/* ===== Oleiro (escrever) ===== */
+function encomendar(){
+  if(E.carroca){ falar('Oleiro','Os tijolos já estão a caminho!',4); return; }
+  const o=OBRA[E.estagio], faltam=o.precisa-E.colocados;
+  abrir(`<h2>Encomenda ao oleiro</h2>
+    <p>O mestre de obras mediu: para <b>${o.nome}</b> do celeiro faltam <b style="font-size:22px">${faltam}</b> tijolos.</p>
+    <p>O oleiro só entende hieróglifos. <b>Escreva na tabuinha quantos tijolos você quer.</b> Ele vai fazer exatamente o que estiver escrito, e cada tijolo custa 1 cobre.</p>
+    <div id="m"></div><p class="aviso" id="av"></p>
+    <div class="botoes"><button id="b-env">Enviar encomenda</button><button class="sec" id="b-canc">Agora não</button></div>`);
   const q=montador($('m'),()=>{ $('av').textContent=''; });
-  $('b-ok').onclick=()=>{
-    const v=valorDe(q), av=$('av');
-    if(v===n&&canonico(q)){ ganhar(5); av.className='aviso bom'; av.textContent='Perfeito! O construtor anotou a medida.'; $('b-ok').disabled=true;
-      setTimeout(()=> i+1<ESCREVER.length ? etapaEscrever(i+1) : concluirEtapa(), 1500); }
-    else { tremer(); av.className='aviso ruim';
-      av.textContent = v===n ? 'O valor está certo, mas há 10 ou mais desenhos iguais. Os egípcios trocariam dez deles por um desenho maior.' : v<n ? `Seu número vale ${v}. Falta ${n-v}.` : `Seu número vale ${v}. Passou ${v-n}.`; }
+  $('b-canc').onclick=fechar;
+  $('b-env').onclick=()=>{
+    const v=valorDe(q);
+    if(v===0){ $('av').className='aviso ruim'; $('av').textContent='A tabuinha está vazia.'; tremer(); return; }
+    fechar(); E.encomendou=true; E.carroca={qtd:v,k:0,chegou:false};
+    if(!canonico(q)) falar('Oleiro',`Entendi ${v}, mas que tabuinha cheia! Dez desenhos iguais viram um desenho maior, sabia?`,7);
+    else falar('Oleiro','Encomenda recebida! Os tijolos já vão sair.',4);
+    renderObjetivo();
   };
 }
-/* Etapa 3: trocar e pagar */
+
+/* ===== Pagamento (trocar) ===== */
 let pg=null;
-function etapaTrocar(i){
-  const r=TROCAR[i]; pg={i, bolsa:partes(r.tem), pag:{lotus:0,rolo:0,arco:0,traco:0}};
-  abrir(cabecalho('Pagar o vendedor de tijolos',i,TROCAR.length)+`<p>O vendedor pede <b style="font-size:22px">${r.paga}</b>. Monte o pagamento exato com os desenhos da sua bolsa.</p>
-    <p><small>Clique num desenho para movê-lo entre a bolsa e o pagamento. Se faltar um desenho pequeno, use as trocas.</small></p>
+function chegaramTijolos(){
+  const v=E.carroca.qtd;
+  pg={v, bolsa:{...E.bolsa}, pag:{lotus:0,rolo:0,arco:0,traco:0}};
+  abrir(`<h2>Chegaram ${v} tijolos!</h2>
+    <p>O oleiro cobra <b style="font-size:22px">${v}</b> cobres. Mova as moedas da bolsa para o pagamento. Se faltar uma moeda pequena, faça uma troca.</p>
     <div class="zonas"><div class="zona"><h3>Sua bolsa</h3><div class="itens" id="z-bolsa"></div></div><div class="zona"><h3>Pagamento</h3><div class="itens" id="z-pag"></div></div></div>
-    <div class="trocas" id="trocas"></div><p class="aviso" id="av"></p><div class="botoes"><button id="b-pagar">Pagar</button></div>`);
+    <div class="trocas" id="trocas"></div><p class="aviso" id="av"></p>
+    <div class="botoes"><button id="b-pagar">Pagar</button><button class="sec" id="b-devolver">Devolver os tijolos</button></div>`);
   renderPg(); $('b-pagar').onclick=pagar;
+  $('b-devolver').onclick=()=>{ fechar(); E.carroca=null; E.encomendou=false; falar('Oleiro','Tudo bem, levo de volta. Junte mais cobre no mercado e encomende de novo.',6); renderObjetivo(); };
+}
+function moedas(z,id){
+  let h=''; for(const t of ORDEM){ const n=pg[z][t]; if(!n) continue;
+    const cont = n>9 ? 1 : n;
+    for(let k=0;k<cont;k++) h+=`<button class="simb" data-t="${t}" data-z="${z}" aria-label="${NOME_SIMB[t]}, vale ${VALOR[t]}">${HIERO[t]}${n>9?`<span class="n">×${n}</span>`:''}</button>`; }
+  $(id).innerHTML=h||'<small>vazio</small>';
 }
 function renderPg(){
-  for(const [z,id] of [['bolsa','z-bolsa'],['pag','z-pag']]){
-    let h=''; for(const t of ORDEM) for(let k=0;k<pg[z][t];k++) h+=`<button class="simb" data-t="${t}" data-z="${z}" aria-label="${NOME_SIMB[t]}, vale ${VALOR[t]}">${HIERO[t]}</button>`;
-    $(id).innerHTML=h||'<small>vazio</small>';
-  }
-  let tr=''; for(const [de,para] of [['lotus','rolo'],['rolo','arco'],['arco','traco']]) if(pg.bolsa[de]>0) tr+=`<button class="sec" data-de="${de}" data-para="${para}">Trocar 1 ${NOME_SIMB[de]} por 10 ${para==='traco'?'traços':para==='arco'?'arcos':'rolos'}</button>`;
+  moedas('bolsa','z-bolsa'); moedas('pag','z-pag');
+  let tr='';
+  for(const [de,para] of [['lotus','rolo'],['rolo','arco'],['arco','traco']]) if(pg.bolsa[de]>0) tr+=`<button class="sec" data-de="${de}" data-para="${para}" data-n="10">1 ${NOME_SIMB[de]} → 10 ${para==='traco'?'traços':para==='arco'?'arcos':'rolos'}</button>`;
+  for(const [de,para] of [['traco','arco'],['arco','rolo'],['rolo','lotus']]) if(pg.bolsa[de]>=10) tr+=`<button class="sec" data-de="${de}" data-para="${para}" data-n="-10">10 ${de==='traco'?'traços':de==='arco'?'arcos':'rolos'} → 1 ${NOME_SIMB[para]}</button>`;
   $('trocas').innerHTML=tr;
-  document.querySelectorAll('#trocas button').forEach(b=>b.onclick=()=>{ pg.bolsa[b.dataset.de]--; pg.bolsa[b.dataset.para]+=10; $('av').textContent=''; renderPg(); });
+  document.querySelectorAll('#trocas button').forEach(b=>b.onclick=()=>{ const de=b.dataset.de, para=b.dataset.para;
+    if(b.dataset.n==='10'){ pg.bolsa[de]--; pg.bolsa[para]+=10; } else { pg.bolsa[de]-=10; pg.bolsa[para]++; } $('av').textContent=''; renderPg(); });
   document.querySelectorAll('.simb').forEach(b=>b.onclick=()=>{ const t=b.dataset.t, de=b.dataset.z, para=de==='bolsa'?'pag':'bolsa'; pg[de][t]--; pg[para][t]++; $('av').textContent=''; renderPg(); });
 }
 function pagar(){
-  const r=TROCAR[pg.i], v=valorDe(pg.pag), av=$('av');
-  if(v===r.paga){ ganhar(10); av.className='aviso bom'; av.textContent=`Pagamento exato! Sobraram ${valorDe(pg.bolsa)} na sua bolsa.`; $('b-pagar').disabled=true;
-    setTimeout(()=> pg.i+1<TROCAR.length ? etapaTrocar(pg.i+1) : concluirEtapa(), 1600); }
-  else { tremer(); av.className='aviso ruim'; av.textContent = v<r.paga ? `No pagamento há ${v}. Faltam ${r.paga-v}. Precisa trocar algum desenho?` : `No pagamento há ${v}. Passou ${v-r.paga}.`; }
+  const pago=valorDe(pg.pag), v=pg.v, av=$('av');
+  if(pago<v){ tremer(); av.className='aviso ruim'; av.textContent= valorDe(pg.bolsa)+pago<v ? `Seu cobre não dá: faltam ${v-pago-valorDe(pg.bolsa)}. Você pode devolver os tijolos e vender mais trigo.` : `O oleiro contou: faltam ${v-pago}. Precisa trocar alguma moeda?`; return; }
+  E.bolsa={...pg.bolsa}; fechar(); E.carroca=null; E.encomendou=false;
+  if(pago>v) falar('Oleiro',`Obrigado! Você pagou ${pago-v} a mais… e eu fico com o troco.`,6);
+  colocarTijolos(v);
 }
-/* Final */
+function colocarTijolos(v){
+  E.colocados+=v; cena.flutuar(celeiro.x+1,celeiro.y+1,`+${v} tijolos`,'#ffb08a');
+  while(E.estagio<OBRA.length && E.colocados>=OBRA[E.estagio].precisa){
+    E.colocados-=OBRA[E.estagio].precisa; const nome=OBRA[E.estagio].nome; E.estagio++;
+    if(E.estagio<OBRA.length) falar('Mestre de obras',`${nome[0].toUpperCase()+nome.slice(1)} do celeiro ficou pronta! Agora vamos para ${OBRA[E.estagio].nome}.`.replace('Os silos do celeiro ficou pronta','Os silos do celeiro ficaram prontos'),7);
+  }
+  if(E.estagio>=OBRA.length){ E.acabou=true; renderHud(); setTimeout(final,2500); return; }
+  const faltam=OBRA[E.estagio].precisa-E.colocados;
+  if(v<faltam+v && E.colocados>0 && E.colocados<OBRA[E.estagio].precisa) falar('Mestre de obras',`Ainda faltam ${faltam} tijolos para ${OBRA[E.estagio].nome}.`,6);
+  renderHud(); renderObjetivo();
+}
+
+/* ===== Dicas ===== */
+let nivelDica=0;
+$('b-dica').onclick=()=>{
+  if(!E.licaoVista){ falar('Escriba','Clique em mim, o escriba com o papiro, para começar a lição.'); return; }
+  const dicas = E.carroca ? ['Quando os tijolos chegarem, pague o valor exato. Se faltar moeda pequena, troque: 1 arco vira 10 traços.']
+    : totalBolsa() < OBRA[E.estagio].precisa-E.colocados ? ['Mais desenhos não quer dizer mais valor! Some: cada arco vale 10, cada traço vale 1.','Compare primeiro os desenhos maiores: quem tem mais rolos paga mais; se empatar, compare os arcos.']
+    : ['Para escrever o número, separe: centenas viram rolos, dezenas viram arcos, unidades viram traços.','Exemplo: 124 = 1 rolo, 2 arcos e 4 traços.'];
+  falar('Escriba','💡 '+dicas[nivelDica%dicas.length],12); nivelDica++;
+};
+
+/* ===== Final ===== */
 function final(){
   salvarProgresso('numeros');
-  abrir(`<h2>Conhecimento aprendido: os números do Egito!</h2>
-    <p>Você leu, escreveu e trocou números egípcios. Com os <b>${E.tijolos} tijolos</b> que ganhou, o celeiro da vila ficou pronto.</p>
+  abrir(`<h2>O celeiro está pronto!</h2>
+    <p>Você leu os preços do mercado, escreveu as encomendas e pagou o oleiro, tudo em hieróglifos. <b>Conhecimento aprendido: os números do Egito.</b></p>
     <div class="simbolos">${ORDEM.slice().reverse().map(t=>`<div class="simbolo"><span class="glifos">${HIERO[t]}</span><b>${VALOR[t]}</b><small>${NOME_SIMB[t]}</small></div>`).join('')}</div>
     <p>Na árvore do conhecimento, o próximo passo já está liberado: <b>os terrenos da cheia</b>.</p>
     <div class="botoes"><button id="b-volta">Voltar à vila</button></div>`);
   $('b-volta').onclick=()=>location.href='egito.html?novo=numeros';
 }
-objetivo('Clique no <b>escriba</b> (de colar dourado) para aprender como os egípcios escreviam números.');
+
+/* ===== Início ===== */
+$('tela').addEventListener('pointerdown',e=>{
+  if(modalAberto()) return; const [mx,my]=cena.ptJogo(e);
+  const perto=(a,r)=>{ const [sx,sy]=cena.p(a.x,a.y); return Math.hypot(mx-sx,my-(sy-16))<(r||24); };
+  if(perto(escriba)) clicarEscriba();
+  else if(E.licaoVista){ if(perto(oleiro)) encomendar(); else if(perto(mercadores[0],30)) vender(0); else if(perto(mercadores[1],30)) vender(1); }
+});
+renderHud(); renderObjetivo();
 falar('Escriba','Olá! Antes de construir o celeiro, preciso te ensinar como nós, egípcios, escrevemos os números. Clique em mim!',10);
-renderEtapas();
+requestAnimationFrame(quadro);
+window.jogo=E;
 </script>
 </body>
 </html>
