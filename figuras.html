@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Era da Matemática — Terrenos em L</title>
+<link rel="stylesheet" href="estilo.css">
+<style>
+#acao{position:absolute;right:12px;bottom:12px;width:min(360px,calc(100vw - 24px));font-size:15px;display:none}
+#acao h3{margin:0 0 6px;font-size:17px}
+#acao p{margin:4px 0}
+.contador{display:flex;align-items:center;gap:6px;margin:8px 0;flex-wrap:wrap}
+.contador button{padding:4px 10px;font-size:15px}
+.contador .n{font-size:28px;font-weight:bold;min-width:56px;text-align:center}
+.ferr{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.ferr button{font-size:13px;padding:5px 8px}
+.ferr button.ativo{background:var(--ouro);color:#fff}
+.estrelas{font-size:26px;letter-spacing:2px}
+.passo{font-size:13px;color:#6d5430;margin:0}
+.fig{display:block;margin:10px auto;max-width:100%}
+.conta{font-size:18px;margin:10px 0;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="tela">
+  <canvas id="tela"></canvas>
+  <div class="hud">
+    <div class="painel num"><span>🪙 Cobres</span><span class="v" id="v-cobres">0</span></div>
+    <div class="painel num"><span>Terreno</span><span class="v" id="v-terreno">1/3</span></div>
+    <div class="painel num"><span>⭐</span><span class="v" id="v-estrelas">0</span></div>
+    <button class="sec direita" id="b-dica">💡 Dica do escriba</button>
+    <button class="sec" id="b-som">🔊 Som</button>
+    <button class="sec" id="b-vila">← Vila</button>
+  </div>
+  <div class="painel objetivo" id="objetivo"></div>
+  <div class="painel" id="acao"></div>
+  <div class="painel fala" id="fala" style="max-width:min(520px,calc(100vw - 400px))"><span class="quem"></span><span class="txt"></span></div>
+  <div class="fundo-modal" id="fundo-modal"><div class="modal" id="modal"></div></div>
+</div>
+<script src="comum.js"></script>
+<script>
+'use strict';
+/* ===== AJUSTES ===== */
+const PRECO_SEMENTE = 2;    // cobres por canteiro
+const PRECO_CERCA = 1;      // cobres por pedaço de cerca
+const VENDA_TRIGO = 5;      // cobres por canteiro colhido
+const COBRES_INICIAIS = 120;
+const ORIGEM = {x:2, y:4};  // onde o terreno aparece no mapa
+// Terrenos: pedaços (retângulos), contorno (vértices em ordem) e jeitos de cortar
+const TERRENOS = [
+  {nome:'o terreno em L', rects:[[0,0,4,2],[0,2,2,3]], poli:[[0,0],[4,0],[4,2],[2,2],[2,5],[0,5]],
+   cortes:{horizontal:[[0,0,4,2],[0,2,2,3]], vertical:[[0,0,2,5],[2,0,2,2]], completar:{grande:[0,0,4,5], faltas:[[2,2,2,3]]}}},
+  {nome:'o terreno em T', rects:[[0,0,6,2],[2,2,2,3]], poli:[[0,0],[6,0],[6,2],[4,2],[4,5],[2,5],[2,2],[0,2]],
+   cortes:{horizontal:[[0,0,6,2],[2,2,2,3]], vertical:[[0,0,2,2],[2,0,2,5],[4,0,2,2]], completar:{grande:[0,0,6,5], faltas:[[0,2,2,3],[4,2,2,3]]}}},
+  {nome:'o terreno em U', rects:[[0,0,2,4],[2,2,2,2],[4,0,2,4]], poli:[[0,0],[2,0],[2,2],[4,2],[4,0],[6,0],[6,4],[0,4]],
+   cortes:{horizontal:[[0,0,2,2],[4,0,2,2],[0,2,6,2]], vertical:[[0,0,2,4],[2,2,2,2],[4,0,2,4]], completar:{grande:[0,0,6,4], faltas:[[2,0,2,2]]}}}
+];
+for(const t of TERRENOS){
+  const s=new Set(); for(const [x,y,w,d] of t.rects) for(let i=0;i<w;i++) for(let j=0;j<d;j++) s.add((x+i)+','+(y+j));
+  t.tiles=[...s].map(k=>{ const [x,y]=k.split(',').map(Number); return {x,y}; });
+  t.area=t.tiles.length; let p=0; for(let i=0;i<t.poli.length;i++){ const a=t.poli[i], b=t.poli[(i+1)%t.poli.length]; p+=Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1]); } t.contorno=p;
+}
+
+const $ = id => document.getElementById(id);
+let timerFala=null;
+function falar(quem,txt,seg=8){ const f=$('fala'); f.querySelector('.quem').textContent=quem; f.querySelector('.txt').innerHTML=txt; f.style.display='block'; clearTimeout(timerFala); timerFala=setTimeout(()=>f.style.display='none',seg*1000); }
+function objetivo(h){ $('objetivo').innerHTML=h; $('objetivo').style.display=h?'block':'none'; }
+const modalAberto = ()=>$('fundo-modal').style.display==='flex';
+function abrir(h){ if(!modalAberto()) Som.tocar('abrir'); $('modal').innerHTML=h; $('fundo-modal').style.display='flex'; $('modal').scrollTop=0; }
+function fechar(){ $('fundo-modal').style.display='none'; }
+$('b-vila').onclick=()=>location.href='egito.html';
+botaoSom($('b-som'));
+
+/* ===== Estado ===== */
+const E = { cobres:COBRES_INICIAIS, idx:0, fase:'licao', corte:null, sementes:20, cerca:20, plantados:0, cercados:0, comidos:[], estrelas:0, estrelasTerreno:[], anim:0, templo:0 };
+const T = ()=>TERRENOS[E.idx];
+function renderHud(){ $('v-cobres').textContent=E.cobres; $('v-terreno').textContent=`${Math.min(E.idx+1,3)}/3`; $('v-estrelas').textContent=E.estrelas; }
+
+/* ===== Cena ===== */
+const cena = new Cena($('tela'), 12, 70);
+const tipo=(x,y)=> y<2?'agua': y===2?'margem':'areia';
+const cabana={x:9, y:3.2, w:2, d:2};
+const templo={x:8.6, y:9.2, w:3, d:2};
+const palmeiras=[{x:1,y:11},{x:11.4,y:6.6},{x:9.2,y:7.4},{x:1.2,y:3.4}];
+const aldeoes=[{x:8.6,y:6.4},{x:9.4,y:6.9}];
+const bode={x:11.5,y:11.5,ativo:false,dir:-1};
+const emMapa=(x,y)=>[ORIGEM.x+x, ORIGEM.y+y];
+
+function desenharTerreno(){
+  const t=T(), ctx=cena.ctx; if(!t) return;
+  const plantadoSet=new Set(t.tiles.slice(0,E.plantados).map(k=>k.x+','+k.y));
+  const comidos=new Set(E.comidos);
+  for(const k of t.tiles){ const [x,y]=emMapa(k.x,k.y), chave=k.x+','+k.y;
+    if(E.fase==='colhido' || comidos.has(chave)) { cena.losango(x,y, comidos.has(chave)?'#9a8a5a':'#b89a5a'); continue; }
+    if(plantadoSet.has(chave)) cena.campo({x,y,w:1,d:1}, E.fase==='plantando'?0.35:1, E.fase!=='plantando', true);
+    else { cena.losango(x,y,(x+y)%2?'#8c6b45':'#86663f'); }
+  }
+  // contorno do terreno e medidas dos lados
+  ctx.strokeStyle='rgba(255,240,200,.85)'; ctx.lineWidth=2; ctx.setLineDash([5,4]); ctx.beginPath();
+  t.poli.forEach((v,i)=>{ const [sx,sy]=cena.p(...emMapa(v[0],v[1])); if(i) ctx.lineTo(sx,sy); else ctx.moveTo(sx,sy); }); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+  // cerca (só os pedaços já colocados)
+  if(E.cercados>0) desenharCerca(t);
+  if(['medir','cerca'].includes(E.fase) || E.fase==='resultado'){
+    ctx.font='bold 15px Trebuchet MS'; ctx.textAlign='center'; ctx.lineWidth=4;
+    for(let i=0;i<t.poli.length;i++){ const a=t.poli[i], b=t.poli[(i+1)%t.poli.length], L=Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1]);
+      const dx=Math.sign(b[0]-a[0]), dy=Math.sign(b[1]-a[1]), mx=(a[0]+b[0])/2+dy*0.42, my=(a[1]+b[1])/2-dx*0.42;
+      const [sx,sy]=cena.p(...emMapa(mx,my)); ctx.strokeStyle='#2a1a08'; ctx.strokeText(L,sx,sy+5); ctx.fillStyle='#fff3c8'; ctx.fillText(L,sx,sy+5); }
+  }
+  if(E.corte && E.fase==='medir') desenharCorte(t);
+}
+function bordas(t){ // segmentos unitários do contorno, em ordem
+  const seg=[]; for(let i=0;i<t.poli.length;i++){ const a=t.poli[i], b=t.poli[(i+1)%t.poli.length], dx=Math.sign(b[0]-a[0]), dy=Math.sign(b[1]-a[1]), L=Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1]);
+    for(let k=0;k<L;k++) seg.push([[a[0]+dx*k,a[1]+dy*k],[a[0]+dx*(k+1),a[1]+dy*(k+1)]]); } return seg;
+}
+function desenharCerca(t){
+  const ctx=cena.ctx, seg=bordas(t).slice(0,E.cercados);
+  ctx.strokeStyle='#7a5228'; ctx.lineWidth=1.6;
+  for(const [a,b] of seg){ const A=cena.p(...emMapa(...a)), B=cena.p(...emMapa(...b));
+    for(const h of [4,8]){ ctx.beginPath(); ctx.moveTo(A[0],A[1]-h); ctx.lineTo(B[0],B[1]-h); ctx.stroke(); }
+    for(const P of [A,B]){ ctx.fillStyle='#5a3818'; ctx.fillRect(P[0]-1.5,P[1]-11,3,11); } }
+}
+function desenharCorte(t){
+  const ctx=cena.ctx, c=t.cortes[E.corte], cores=['rgba(90,170,235,.6)','rgba(245,175,60,.62)','rgba(150,210,95,.62)'];
+  const rot=(r,txt,cor)=>{ const [x,y,w,d]=r, [sx,sy]=cena.p(...emMapa(x+w/2,y+d/2)); ctx.font='bold 16px Trebuchet MS'; ctx.textAlign='center'; ctx.lineWidth=4; ctx.strokeStyle='#2a1a08'; ctx.strokeText(txt,sx,sy+5); ctx.fillStyle=cor||'#fff'; ctx.fillText(txt,sx,sy+5); };
+  const pinta=(r,cor)=>{ const [x,y,w,d]=r; for(let i=0;i<w;i++) for(let j=0;j<d;j++) cena.losango(...emMapa(x+i,y+j),cor); cena.contorno({x:ORIGEM.x+x,y:ORIGEM.y+y,w,d},'#fff',2.5); };
+  if(E.corte==='completar'){ const [x,y,w,d]=c.grande; cena.contorno({x:ORIGEM.x+x,y:ORIGEM.y+y,w,d},'#fff',2.5,[8,5]);
+    for(const f of c.faltas){ pinta(f,'rgba(220,70,50,.35)'); rot(f,`− ${f[2]} × ${f[3]}`,'#ffd0c0'); }
+    const [gx,gy]=cena.p(...emMapa(x+w,y)); ctx.font='bold 15px Trebuchet MS'; ctx.textAlign='left'; ctx.lineWidth=4; ctx.strokeStyle='#2a1a08'; ctx.strokeText(`retângulo ${w} × ${d}`,gx+8,gy); ctx.fillStyle='#fff'; ctx.fillText(`retângulo ${w} × ${d}`,gx+8,gy); }
+  else c.forEach((r,i)=>{ pinta(r,cores[i%3]); rot(r,`${r[2]} × ${r[3]}`); });
+}
+
+let ultimo=performance.now();
+function quadro(agora){
+  const dt=Math.max(0,Math.min(0.1,(agora-ultimo)/1000)); ultimo=Math.max(ultimo,agora);
+  atualizarAnim(dt);
+  cena.comecar(dt); cena.chao(tipo); desenharTerreno();
+  const ents=[{d:cabana.x+cabana.y+2,f:()=>cena.cabana(cabana)}];
+  if(E.templo>0) ents.push({d:templo.x+templo.y+2,f:()=>cena.templo(templo,E.templo)}); else ents.push({d:-1,f:()=>cena.contorno(templo,'rgba(120,80,40,.5)',2,[6,5])});
+  for(const p of palmeiras) ents.push({d:p.x+p.y,f:()=>cena.palmeira(p)});
+  for(const a of aldeoes) ents.push({d:a.x+a.y,f:()=>cena.pessoa(a,'#f4efe2')});
+  if(bode.ativo) ents.push({d:bode.x+bode.y,f:()=>cena.bode(bode)});
+  ents.sort((a,b)=>a.d-b.d).forEach(e=>e.f());
+  cena.desenharFlutuantes(); cena.vinheta();
+  requestAnimationFrame(quadro);
+}
+
+/* ===== Lição ===== */
+function svgFig(rects, faltas){
+  const s=22, todos=[...rects,...(faltas||[])]; let W=0,H=0; for(const [x,y,w,d] of todos){ W=Math.max(W,x+w); H=Math.max(H,y+d); }
+  let h=`<svg class="fig" viewBox="-30 -30 ${W*s+60} ${H*s+60}" width="${W*s+60}" role="img" aria-label="Terreno desenhado em quadradinhos">`;
+  const cores=['#9fc6e6','#f2c77a','#b9dc8f'];
+  rects.forEach((r,i)=>{ const [x,y,w,d]=r; h+=`<rect x="${x*s}" y="${y*s}" width="${w*s}" height="${d*s}" fill="${cores[i%3]}" stroke="#3b2a14" stroke-width="2"/>`;
+    for(let a=1;a<w;a++) h+=`<line x1="${(x+a)*s}" y1="${y*s}" x2="${(x+a)*s}" y2="${(y+d)*s}" stroke="#3b2a14" stroke-opacity=".25"/>`;
+    for(let b=1;b<d;b++) h+=`<line x1="${x*s}" y1="${(y+b)*s}" x2="${(x+w)*s}" y2="${(y+b)*s}" stroke="#3b2a14" stroke-opacity=".25"/>`;
+    h+=`<text x="${(x+w/2)*s}" y="${(y+d/2)*s+5}" text-anchor="middle" font-size="14" font-weight="bold" fill="#3b2a14">${w} × ${d}</text>`; });
+  (faltas||[]).forEach(r=>{ const [x,y,w,d]=r; h+=`<rect x="${x*s}" y="${y*s}" width="${w*s}" height="${d*s}" fill="#f4b8a8" fill-opacity=".6" stroke="#a8321f" stroke-width="2" stroke-dasharray="5 4"/><text x="${(x+w/2)*s}" y="${(y+d/2)*s+5}" text-anchor="middle" font-size="14" font-weight="bold" fill="#a8321f">− ${w} × ${d}</text>`; });
+  return h+'</svg>';
+}
+const LICAO=[
+  ()=>`<h2>Terrenos tortos</h2><p>Depois da cheia, muitos terrenos ficaram com formatos tortos, como este em <b>L</b>. Para saber a área, um bom truque é <b>cortar em retângulos</b> e somar:</p>
+    ${svgFig([[0,0,4,2],[0,2,2,3]])}<div class="conta">4 × 2 + 2 × 3 = 8 + 6 = <b>14</b> quadradinhos</div>`,
+  ()=>`<h2>Outro jeito: completar e tirar</h2><p>Também dá para <b>completar o retângulo inteiro</b> e depois <b>tirar o pedaço que falta</b>:</p>
+    ${svgFig([[0,0,4,5]].map(r=>r),[[2,2,2,3]])}<div class="conta">4 × 5 − 2 × 3 = 20 − 6 = <b>14</b> quadradinhos</div><p>Os dois jeitos dão o mesmo resultado. Use o que achar mais fácil!</p>`,
+  ()=>`<h2>E a cerca?</h2><p>Para cercar, some <b>todos os lados</b> do contorno, dando a volta inteira no terreno:</p>
+    ${svgFig([[0,0,4,2],[0,2,2,3]])}<div class="conta">4 + 2 + 2 + 3 + 2 + 5 = <b>18</b> pedaços de cerca</div>
+    <p><b>Cuidado:</b> cortar o terreno serve para a área. Os cortes de dentro <b>não</b> levam cerca!</p>`
+];
+function licao(i){
+  const fim=i===LICAO.length-1;
+  abrir(LICAO[i]()+`<p class="passo">Lição ${i+1} de ${LICAO.length}</p><div class="botoes">${i?'<button class="sec" id="b-ant">← Voltar</button>':''}<button id="b-prox">${fim?'Ir para os terrenos':'Próximo →'}</button></div>`);
+  if(i) $('b-ant').onclick=()=>licao(i-1);
+  $('b-prox').onclick=()=> fim ? (fechar(), Som.musica(true), iniciarTerreno()) : licao(i+1);
+}
+
+/* ===== Cada terreno ===== */
+function iniciarTerreno(){
+  E.fase='medir'; E.corte=null; E.plantados=0; E.cercados=0; E.comidos=[]; E.sementes=10; E.cerca=10; bode.ativo=false;
+  renderHud(); renderAcao(); nivelDica=0;
+  objetivo(`<b>${T().nome[0].toUpperCase()+T().nome.slice(1)}.</b> Compre <b>sementes para cada quadradinho</b> do terreno (${PRECO_SEMENTE} cobres cada). Se sobrar, estraga; se faltar, ficam buracos sem trigo.`);
+  falar('Escriba', E.idx===0 ? 'Use os botões de <b>corte</b> para dividir o terreno em retângulos. As medidas dos lados estão no chão.' : E.idx===2 ? 'Este é em U. Atenção: aqui o contorno tem um recorte para dentro!' : 'Mais um terreno torto. Corte, calcule e plante!',9);
+}
+function contador(id,valor){ return `<div class="contador"><button class="sec" data-d="-10" data-c="${id}">−10</button><button class="sec" data-d="-1" data-c="${id}">−1</button><span class="n" id="n-${id}">${valor}</span><button class="sec" data-d="1" data-c="${id}">+1</button><button class="sec" data-d="10" data-c="${id}">+10</button></div>`; }
+function ligarContadores(){ document.querySelectorAll('.contador button').forEach(b=>b.onclick=()=>{ Som.tocar('clique'); const c=b.dataset.c; E[c]=Math.max(0,Math.min(99,E[c]+(+b.dataset.d))); $('n-'+c).textContent=E[c]; $('custo-'+c).textContent=custo(c); }); }
+const custo = c => c==='sementes' ? `${E.sementes} × ${PRECO_SEMENTE} = ${E.sementes*PRECO_SEMENTE} cobres` : `${E.cerca} × ${PRECO_CERCA} = ${E.cerca*PRECO_CERCA} cobres`;
+function renderAcao(){
+  const el=$('acao'); el.style.display='block'; const t=T();
+  if(E.fase==='medir'){
+    el.innerHTML=`<h3>1. Sementes</h3><p>Ferramentas de corte (só para ajudar a ver):</p>
+      <div class="ferr">${[['horizontal','✂ Cortar ⇆'],['vertical','✂ Cortar ⇅'],['completar','⬚ Completar e tirar'],['','Sem corte']].map(([k,r])=>`<button class="sec ${E.corte===(k||null)?'ativo':''}" data-corte="${k}">${r}</button>`).join('')}</div>
+      <p>Quantas sementes comprar?</p>${contador('sementes',E.sementes)}<p><small id="custo-sementes">${custo('sementes')}</small></p>
+      <div class="botoes"><button id="b-plantar">🌱 Comprar e plantar</button></div><p class="aviso ruim" id="av"></p>`;
+    el.querySelectorAll('[data-corte]').forEach(b=>b.onclick=()=>{ Som.tocar('clique'); E.corte=b.dataset.corte||null; renderAcao(); });
+    ligarContadores(); $('b-plantar').onclick=plantar;
+  } else if(E.fase==='cerca'){
+    el.innerHTML=`<h3>2. Cerca</h3><p>Agora o contorno: quantos pedaços de cerca?</p>${contador('cerca',E.cerca)}<p><small id="custo-cerca">${custo('cerca')}</small></p>
+      <div class="botoes"><button id="b-cercar">🪵 Comprar e cercar</button></div><p class="aviso ruim" id="av"></p>`;
+    ligarContadores(); $('b-cercar').onclick=cercar;
+  } else if(E.fase==='resultado'){
+    const r=E.res; el.innerHTML=`<h3>Resultado ${['do L','do T','do U'][E.idx]}</h3>
+      <p>🌱 Sementes: ${r.sem}</p><p>🪵 Cerca: ${r.cer}</p><p>🌾 Colheita: <b>${r.colhidos}</b> canteiros × ${VENDA_TRIGO} = <b>${r.colhidos*VENDA_TRIGO}</b> cobres</p>
+      <p class="estrelas">${'⭐'.repeat(r.estrelas)}${'☆'.repeat(2-r.estrelas)}</p>
+      <div class="botoes">${r.estrelas<2?'<button class="sec" id="b-repetir">Tentar este de novo</button>':''}<button id="b-prox">${E.idx<2?'Próximo terreno →':'Erguer o templo'}</button></div>`;
+    if($('b-repetir')) $('b-repetir').onclick=()=>{ E.cobres=E.cobresAntes; E.estrelas-=r.estrelas; iniciarTerreno(); };
+    $('b-prox').onclick=()=>{ if(E.idx<2){ E.idx++; iniciarTerreno(); } else erguerTemplo(); };
+  } else el.innerHTML=`<h3>${E.fase==='plantando'?'Plantando…':E.fase==='cercando'?'Cercando…':'Colhendo…'}</h3><p>Acompanhe no terreno.</p>`;
+}
+function plantar(){
+  const gasto=E.sementes*PRECO_SEMENTE; if(gasto>E.cobres){ $('av').textContent=`Você só tem ${E.cobres} cobres.`; Som.tocar('ruim'); return; }
+  if(E.sementes===0){ $('av').textContent='Escolha quantas sementes comprar.'; return; }
+  E.cobresAntes=E.cobres; E.cobres-=gasto; renderHud(); Som.tocar('moedas',3);
+  E.fase='plantando'; E.anim=0; E.corte=null; renderAcao(); objetivo('');
+}
+function cercar(){
+  const gasto=E.cerca*PRECO_CERCA; if(gasto>E.cobres){ $('av').textContent=`Você só tem ${E.cobres} cobres.`; Som.tocar('ruim'); return; }
+  if(E.cerca===0){ $('av').textContent='Escolha quantos pedaços de cerca comprar.'; return; }
+  E.cobres-=gasto; renderHud(); Som.tocar('moedas',3);
+  E.fase='cercando'; E.anim=0; renderAcao(); objetivo('');
+}
+function atualizarAnim(dt){
+  const t=T(); if(!t) return;
+  if(E.fase==='plantando'){ E.anim+=dt; const alvo=Math.min(E.sementes,t.area), n=Math.min(alvo,Math.floor(E.anim/0.12));
+    if(n>E.plantados){ E.plantados=n; Som.tocar('carga'); const k=t.tiles[n-1]; cena.emitir(...emMapa(k.x+0.5,k.y+0.5),'poeira',2); }
+    if(E.plantados>=alvo && E.anim>alvo*0.12+0.6){ terminouPlantio(); } }
+  else if(E.fase==='cercando'){ E.anim+=dt; const alvo=Math.min(E.cerca,t.contorno), n=Math.min(alvo,Math.floor(E.anim/0.09));
+    if(n>E.cercados){ E.cercados=n; if(n%3===0) Som.tocar('clique'); }
+    if(E.cercados>=alvo && E.anim>alvo*0.09+0.6) terminouCerca(); }
+  else if(E.fase==='bode'){ const alvoT=t.tiles.find(k=>!E.comidos.includes(k.x+','+k.y) && t.tiles.indexOf(k)<E.plantados);
+    if(!alvoT||E.comidos.length>=E.comer){ bode.ativo=false; colher(); return; }
+    const [x,y]=emMapa(alvoT.x+0.5,alvoT.y+0.6); bode.dir = x<bode.x?-1:1;
+    if(moverPara(bode,x,y,2.2,dt)){ E.comidos.push(alvoT.x+','+alvoT.y); Som.tocar('ruim'); cena.flutuar(x,y,'nham!','#ffd0c0'); } }
+  else if(E.fase==='colhendo'){ E.anim+=dt; if(E.anim>1.6){ E.fase='colhido'; mostrarResultado(); } }
+}
+function terminouPlantio(){
+  const t=T(), sobra=E.sementes-t.area;
+  if(sobra>0) falar('Escriba',`Sobraram <b>${sobra}</b> sementes, e elas vão estragar. Você gastou ${sobra*PRECO_SEMENTE} cobres à toa.`,8);
+  else if(sobra<0) falar('Escriba',`Faltaram <b>${-sobra}</b> sementes: ${-sobra} quadradinhos ficaram sem trigo.`,8);
+  else { falar('Escriba','Na medida certa! Nenhuma semente sobrou e nenhum quadradinho ficou vazio.',6); Som.tocar('bom'); cena.emitir(...emMapa(2,2),'brilho',14); }
+  E.fase='cerca'; renderAcao();
+  objetivo(`Agora a <b>cerca</b>: um pedaço para cada lado de quadradinho no contorno (${PRECO_CERCA} cobre cada). Se faltar, fica um buraco… e os bodes adoram trigo!`);
+}
+function terminouCerca(){
+  const t=T(), falta=t.contorno-E.cerca;
+  if(falta>0 && E.plantados>0){ E.comer=Math.min(E.plantados, falta*2); E.fase='bode'; Object.assign(bode,{x:11.5,y:11.5,ativo:true});
+    falar('Escriba',`Faltaram <b>${falta}</b> pedaços de cerca e ficou um buraco… olha o bode entrando!`,7); renderAcao(); return; }
+  if(falta<0) falar('Escriba',`Sobraram <b>${-falta}</b> pedaços de cerca. Os cortes de dentro não precisam de cerca!`,7);
+  else if(falta===0){ falar('Escriba','Cerca perfeita: deu a volta inteira, sem sobrar nada!',6); Som.tocar('bom'); }
+  colher();
+}
+function colher(){ E.fase='colhendo'; E.anim=0; renderAcao(); for(const k of T().tiles.slice(0,E.plantados)) if(!E.comidos.includes(k.x+','+k.y)) cena.emitir(...emMapa(k.x+0.5,k.y+0.5),'brilho',1); }
+function mostrarResultado(){
+  const t=T(), colhidos=Math.min(E.plantados,t.area)-E.comidos.length, semOk=E.sementes===t.area, cerOk=E.cerca===t.contorno;
+  const est=(semOk?1:0)+(cerOk?1:0); E.estrelas+=est; E.cobres+=colhidos*VENDA_TRIGO; renderHud();
+  Som.tocar(est===2?'vitoria':'moedas',6); cena.flutuar(...emMapa(2,2),`+${colhidos*VENDA_TRIGO} cobres`,'#ffd09a'); if(est===2) cena.emitir(...emMapa(2,2),'confete',30);
+  E.res={colhidos, estrelas:est,
+    sem: semOk?`${E.sementes} — certinho ⭐`:`${E.sementes} (o terreno tem ${t.area} quadradinhos)`,
+    cer: cerOk?`${E.cerca} — certinho ⭐`:`${E.cerca} (o contorno tem ${t.contorno} pedaços)`};
+  E.fase='resultado'; renderAcao();
+  objetivo(est===2?'Perfeito! Área e contorno certos.':'Veja no chão as medidas e compare com o que você comprou.');
+}
+function erguerTemplo(){
+  $('acao').style.display='none'; objetivo(''); E.fase='templo';
+  falar('Mestre de obras','Com o que vocês colheram, vamos erguer o templo!',6);
+  const t0=performance.now(); const sobe=()=>{ E.templo=Math.min(1,(performance.now()-t0)/3500); if(Math.random()<0.3) cena.emitir(templo.x+1.5,templo.y+1,'poeira',2);
+    if(E.templo<1) requestAnimationFrame(sobe); else { Som.tocar('vitoria'); cena.emitir(templo.x+1.5,templo.y+1,'confete',60); setTimeout(final,1200); } };
+  Som.tocar('tijolo'); sobe();
+}
+function final(){
+  salvarProgresso('figuras');
+  abrir(`<h2>O templo está de pé!</h2><p>Você mediu terrenos em L, T e U, cortando em retângulos ou completando e tirando. <b>Conhecimento aprendido: figuras compostas.</b></p>
+    <p class="estrelas" style="text-align:center">${'⭐'.repeat(E.estrelas)}${'☆'.repeat(6-E.estrelas)}</p><p style="text-align:center">${E.estrelas} de 6 estrelas${E.estrelas<6?' · dá para jogar de novo e tentar todas!':' · todas!'}</p>
+    <p>Na árvore do conhecimento, o próximo passo já está liberado: <b>dividir os pães</b>.</p>
+    <div class="botoes"><button id="b-volta">Voltar à vila</button><button class="sec" id="b-denovo">Jogar de novo</button></div>`);
+  $('b-volta').onclick=()=>location.href='egito.html?novo=figuras'; $('b-denovo').onclick=()=>location.reload();
+}
+
+/* ===== Dicas ===== */
+let nivelDica=0;
+$('b-dica').onclick=()=>{
+  let d;
+  if(E.fase==='medir') d=['Clique em ✂ para cortar o terreno em retângulos. A área de cada retângulo é comprimento × largura.','Depois de calcular a área de cada pedaço, some tudo. Ou complete o retângulo grande e tire o que falta.'];
+  else if(E.fase==='cerca') d=['Dê a volta no terreno somando os números escritos em cada lado.','Os cortes de dentro não contam: a cerca vai só por fora.'];
+  else d=['Continue! Cada terreno vale até 2 estrelas: uma pela área e outra pelo contorno.'];
+  falar('Escriba','💡 '+d[nivelDica%d.length],12); nivelDica++;
+};
+
+renderHud(); objetivo(''); requestAnimationFrame(quadro);
+setTimeout(()=>licao(0),400);
+window.jogo=E;
+</script>
+</body>
+</html>

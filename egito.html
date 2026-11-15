@@ -51,7 +51,7 @@ const prog = lerProgresso();
 const NOS = [
   {id:'numeros', titulo:'Os números do Egito', tema:'Sistema de numeração egípcio', premio:'Constrói o celeiro', pagina:'numeros.html'},
   {id:'terrenos', titulo:'Os terrenos da cheia', tema:'Área e perímetro', premio:'Constrói os campos de trigo e a casa de Ipi', pagina:'terrenos.html', requer:'numeros'},
-  {id:'figuras', titulo:'Terrenos em L', tema:'Figuras compostas', premio:'Constrói o templo', requer:'terrenos', breve:true},
+  {id:'figuras', titulo:'Terrenos em L', tema:'Figuras compostas', premio:'Constrói o templo', pagina:'figuras.html', requer:'terrenos'},
   {id:'paes', titulo:'Dividir os pães', tema:'Frações', premio:'Constrói a padaria', requer:'figuras', breve:true},
   {id:'silo', titulo:'Quanto cabe no silo?', tema:'Volume', premio:'Silos grandes', requer:'paes', breve:true},
   {id:'enigma', titulo:'O enigma do escriba', tema:'Equações simples', premio:'Abre a rota para a Babilônia', requer:'silo', breve:true}
@@ -86,7 +86,8 @@ const celeiro = {x:3, y:10, w:2, d:2, prog: prog.numeros ? (novo==='numeros'?0.0
 const cabana = {x:8, y:9, w:2, d:2};
 const casaIpi = {x:11, y:6, w:2, d:2, prog: prog.terrenos ? (novo==='terrenos'?0.01:1) : 0};
 const campos = [{x:2,y:4,w:5,d:5},{x:8,y:3,w:3,d:3}];
-const palmeiras = [{x:1.5,y:13},{x:6,y:12.8},{x:12.5,y:11.5},{x:13,y:9},{x:7.3,y:3.6}];
+const templo = {x:10.4, y:11.4, w:3, d:2, prog: prog.figuras ? (novo==='figuras'?0.01:1) : 0};
+const palmeiras = [{x:1.5,y:13},{x:6,y:12.8},{x:13,y:9},{x:7.3,y:3.6}];
 const moradores = [{x:9,y:12,dest:null},{x:6,y:10,dest:null}];
 if(prog.terrenos) moradores.push({x:11,y:9,dest:null});
 function passear(m,dt){
@@ -96,7 +97,7 @@ function passear(m,dt){
 let ultimo=performance.now();
 function quadro(agora){
   const dt=Math.max(0,Math.min(0.1,(agora-ultimo)/1000)); ultimo=Math.max(ultimo,agora);
-  for(const [b,cx,cy] of [[celeiro,celeiro.x+1,celeiro.y+1],[casaIpi,casaIpi.x+1,casaIpi.y+1]]) if(b.prog>0&&b.prog<1){
+  for(const [b,cx,cy] of [[celeiro,celeiro.x+1,celeiro.y+1],[casaIpi,casaIpi.x+1,casaIpi.y+1],[templo,templo.x+1.5,templo.y+1]]) if(b.prog>0&&b.prog<1){
     b.prog=Math.min(1,b.prog+dt/2.5); if(Math.random()<dt*6) cena.emitir(cx,cy,'poeira',2); if(b.prog>=1) cena.emitir(cx,cy,'brilho',24); }
   cena.comecar(dt);
   cena.chao(tipo);
@@ -106,6 +107,7 @@ function quadro(agora){
   if(celeiro.prog>0) ents.push({d:celeiro.x+celeiro.y+2,f:()=>cena.celeiro(celeiro,celeiro.prog)});
   else ents.push({d:-1,f:()=>cena.contorno(celeiro,'rgba(120,80,40,.5)',2,[6,5])});
   if(casaIpi.prog>0) ents.push({d:casaIpi.x+casaIpi.y+2,f:()=>{ const k=casaIpi.prog; if(k<1){ cena.caixa(casaIpi,32*k,['#d4b282','#b08e5e','#ead5aa']); } else cena.cabana(casaIpi); }});
+  if(templo.prog>0) ents.push({d:templo.x+templo.y+2,f:()=>cena.templo(templo,templo.prog)}); else if(prog.terrenos) ents.push({d:-1,f:()=>cena.contorno(templo,'rgba(120,80,40,.4)',2,[6,5])});
   for(const p of palmeiras) ents.push({d:p.x+p.y,f:()=>cena.palmeira(p)});
   for(const m of moradores){ passear(m,dt); ents.push({d:m.x+m.y,f:()=>cena.pessoa(m,'#f4efe2')}); }
   ents.sort((a,b)=>a.d-b.d).forEach(e=>e.f());
@@ -117,6 +119,7 @@ requestAnimationFrame(quadro);
 renderArvore();
 if(novo==='numeros') falar('Escriba','Você aprendeu os números do Egito, e o celeiro foi construído! Agora a vila está pronta para medir os terrenos depois da cheia.',10);
 else if(novo==='terrenos') falar('Escriba','Os campos de trigo e a casa da família de Ipi agora fazem parte da vila!',10);
+else if(novo==='figuras') falar('Escriba','O templo foi erguido! Agora os trabalhadores esperam o pagamento… em pães.',10);
 else if(!prog.numeros) falar('Escriba','Bem-vindo ao Egito! Cada conhecimento que você aprender vira uma construção aqui na vila. Comece pelos <b>números do Egito</b>, na árvore do conhecimento.',12);
 </script>
 </body>

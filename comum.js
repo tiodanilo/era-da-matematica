@@ -234,6 +234,35 @@ class Cena {
       ctx.moveTo(cantos[3][0],cantos[3][1]); ctx.lineTo(cantos[2][0],cantos[2][1]-h*0.45); ctx.stroke();
     }
   }
+  /* templo egípcio com portal de duas torres (pilone) e colunas; prog de 0 a 1 faz ele subir */
+  templo(b, prog){
+    prog = prog===undefined?1:prog; if(prog<=0) return; const ctx=this.ctx;
+    this.sombra(b);
+    const h=10+26*prog;
+    const k=this.caixa(b,h,['#dcc08a','#bf9f68','#efdcae']);
+    // colunas na face da frente-esquerda
+    const {C,D}=k, n=5; ctx.strokeStyle='#a8854f'; ctx.lineWidth=3;
+    ctx.beginPath(); for(let i=1;i<n;i++){ const f=i/n, x=D[0]+(C[0]-D[0])*f, y=D[1]+(C[1]-D[1])*f; ctx.moveTo(x,y-2); ctx.lineTo(x,y-h+4); } ctx.stroke();
+    if(prog>0.5){ // torres do portal na frente
+      const t=(prog-0.5)/0.5, alt=h+22*t;
+      for(const lado of [0,1]){ const tb={x:b.x+(lado?b.w-0.9:0), y:b.y+b.d-0.8, w:0.9, d:0.8};
+        const kt=this.caixa(tb,alt,['#e3c894','#c4a26a','#f3e2b8']);
+        ctx.fillStyle='#2f6fa0'; const m=[(kt.D[0]+kt.C[0])/2,(kt.D[1]+kt.C[1])/2]; ctx.fillRect(m[0]-3,m[1]-alt+6,6,4); }
+      const [gx,gy]=this.p(b.x+b.w/2,b.y+b.d); ctx.fillStyle='#4a2f16'; ctx.fillRect(gx-7,gy-20,14,20);
+    }
+    if(prog<0.999){ ctx.strokeStyle='#8a5a2a'; ctx.lineWidth=2; const cs=[[b.x,b.y+b.d],[b.x+b.w,b.y+b.d],[b.x+b.w,b.y]].map(([x,y])=>this.p(x,y));
+      ctx.beginPath(); for(const [sx,sy] of cs){ ctx.moveTo(sx,sy); ctx.lineTo(sx,sy-60); } ctx.moveTo(cs[0][0],cs[0][1]-30); ctx.lineTo(cs[1][0],cs[1][1]-30); ctx.lineTo(cs[2][0],cs[2][1]-30); ctx.stroke(); }
+  }
+  /* bode (aparece quando a cerca tem buraco) */
+  bode(a){
+    const ctx=this.ctx, [sx,sy0]=this.p(a.x,a.y), sy=sy0-(a.andando?Math.abs(Math.sin(this.T*12))*1.5:0), dir=a.dir||1;
+    ctx.fillStyle='rgba(70,40,10,.25)'; ctx.beginPath(); ctx.ellipse(sx,sy0+1,11,4,0,0,7); ctx.fill();
+    ctx.strokeStyle='#5a4a3a'; ctx.lineWidth=2; ctx.beginPath(); for(const dx of [-6,-2,3,7]){ ctx.moveTo(sx+dx,sy-6); ctx.lineTo(sx+dx,sy); } ctx.stroke();
+    ctx.fillStyle='#e8e2d4'; ctx.beginPath(); ctx.roundRect(sx-9,sy-14,18,9,4); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(sx+dir*7-3,sy-19,7,7,3); ctx.fill();
+    ctx.strokeStyle='#6d5a40'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(sx+dir*8,sy-19); ctx.lineTo(sx+dir*6,sy-23); ctx.stroke();
+    ctx.fillStyle='#2a2118'; ctx.fillRect(sx+dir*9-1,sy-17,1.5,1.5);
+  }
   palmeira(r){
     const ctx=this.ctx, T=this.T, [sx,sy]=this.p(r.x,r.y);
     ctx.fillStyle='rgba(70,40,10,.2)'; ctx.beginPath(); ctx.ellipse(sx+14,sy+3,18,6,0,0,7); ctx.fill();
