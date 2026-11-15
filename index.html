@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Era da Matemática — Egito</title>
+<style>
+:root{--papiro:#f3e2b8;--papiro2:#e9d39d;--tinta:#3b2a14;--borda:#8a6a3a;--ouro:#c98a1b;--fundo:#2a2118;--verde:#3f7a26;--vermelho:#a8321f}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--fundo);font-family:"Trebuchet MS",system-ui,sans-serif;color:var(--tinta);overflow:hidden;user-select:none;-webkit-user-select:none}
+#jogo{position:relative;width:100vw;height:100vh}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.painel{background:var(--papiro);border:2px solid var(--borda);border-radius:10px;padding:6px 10px;box-shadow:0 2px 0 rgba(0,0,0,.35)}
+#hud{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+.num{display:flex;align-items:center;gap:8px;min-height:42px;font-weight:bold}
+.num .v{font-size:22px}
+.num small{font-weight:normal}
+.pop{animation:pop .5s ease-out}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.35);color:var(--ouro)}100%{transform:scale(1)}}
+#dia{display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:130px}
+#dia .linha{display:flex;align-items:center;gap:8px;font-weight:bold}
+.sol{width:18px;height:18px;border-radius:50%;background:#f0a830;box-shadow:0 0 0 3px #f6d27a}
+.barra{height:6px;background:#d7bf86;border-radius:3px;overflow:hidden}
+.barra i{display:block;height:100%;width:0;background:var(--ouro)}
+#meta{display:none}
+#btn-dica{margin-left:auto;pointer-events:auto;font:inherit;font-weight:bold;color:var(--tinta);cursor:pointer}
+#btn-dica.chamando{animation:brilho 1s ease-in-out infinite alternate}
+@keyframes brilho{from{box-shadow:0 0 0 0 #f6c74a}to{box-shadow:0 0 0 7px #f6c74a}}
+.dica-item{background:var(--papiro2);border-radius:8px;padding:8px 12px;margin:8px 0}
+.dica-item b{color:var(--vermelho)}
+#esq{position:absolute;left:8px;top:66px;display:flex;flex-direction:column;gap:8px;max-width:min(360px,calc(100vw - 16px));pointer-events:none}
+#objetivo{font-size:15px}
+#objetivo b{color:var(--vermelho)}
+#caderno{display:none;font-size:14px}
+#caderno h3{margin:0 0 4px;font-size:14px}
+#caderno table{border-collapse:collapse;width:100%}
+#caderno td,#caderno th{padding:2px 6px;text-align:center;border-bottom:1px solid var(--papiro2)}
+#caderno tr.melhor td{color:var(--verde);font-weight:bold}
+#proposta{position:absolute;left:50%;transform:translateX(-50%);top:66px;display:none;text-align:center;min-width:300px;max-width:calc(100vw - 16px)}
+#proposta .medidas{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-size:15px}
+#proposta .medidas b{font-size:20px;display:block}
+#proposta .msg{font-weight:bold;margin:6px 0;min-height:1.2em}
+#proposta .msg.ruim{color:var(--vermelho)}
+#proposta .msg.bom{color:var(--verde)}
+#fala{position:absolute;left:12px;bottom:12px;max-width:min(560px,calc(100vw - 24px));display:none;font-size:17px;line-height:1.4;pointer-events:none}
+#fala .quem{font-weight:bold;color:var(--vermelho);font-size:14px;display:block}
+#selecao{position:absolute;right:12px;bottom:12px;display:none;font-size:14px;pointer-events:none}
+button{font:inherit;font-size:16px;font-weight:bold;cursor:pointer;background:var(--ouro);color:#fff;border:2px solid #8a5a10;border-radius:8px;padding:8px 14px}
+button.sec{background:var(--papiro2);color:var(--tinta);border-color:var(--borda)}
+button:active{transform:scale(.97)}
+.botoes{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center}
+#fundo-modal{position:absolute;inset:0;background:rgba(20,12,4,.55);display:none;align-items:flex-start;justify-content:center;padding:70px 16px 16px;z-index:10}
+#modal{background:var(--papiro);border:3px solid var(--borda);border-radius:14px;padding:18px 20px;max-width:560px;width:100%;max-height:calc(100vh - 90px);overflow:auto}
+#modal h2{margin:0 0 8px;font-size:22px}
+#modal p{margin:8px 0;line-height:1.4}
+#modal .botoes{justify-content:flex-start}
+.jornada{display:flex;align-items:center;gap:6px;margin:14px 0;padding:12px;background:var(--papiro2);border-radius:10px}
+.parada{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:13px;font-weight:bold;min-width:70px;text-align:center}
+.parada span{width:34px;height:34px;border-radius:50%;border:2px solid var(--borda);background:#d8c08a;display:flex;align-items:center;justify-content:center;font-size:16px;color:#7a6440}
+.parada.feita span{background:var(--verde);border-color:#2c5a18;color:#fff}
+.parada.atual span{background:var(--ouro);color:#fff}
+.trilha{flex:1;border-top:3px dashed #b39a6a;margin-bottom:18px}
+.trilha.aberta{border-color:var(--vermelho)}
+#inicio{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at center,#5a3d22,#1e140a)}
+.rolo{width:min(640px,100%);display:flex;flex-direction:column;align-items:stretch;animation:desenrola .9s ease-out}
+@keyframes desenrola{from{transform:scaleY(.08);opacity:.4}to{transform:scaleY(1);opacity:1}}
+.vara{height:22px;border-radius:11px;background:linear-gradient(#a8743c,#6d441d 60%,#4a2c12);margin:0 -14px;box-shadow:0 3px 6px rgba(0,0,0,.4)}
+.folha{background:#ead6a4;background-image:repeating-linear-gradient(90deg,rgba(140,100,50,.07) 0 2px,transparent 2px 7px),repeating-linear-gradient(0deg,rgba(140,100,50,.06) 0 1px,transparent 1px 9px);
+  padding:22px 34px 28px;text-align:center;box-shadow:inset 0 0 40px rgba(120,80,30,.35)}
+.friso{height:12px;margin:0 -34px 18px;background:repeating-linear-gradient(90deg,#2f6fa0 0 14px,#c98a1b 14px 20px,#a8321f 20px 34px,#c98a1b 34px 40px)}
+.friso.baixo{margin:18px -34px 0}
+.folha h1{margin:0;font-size:clamp(26px,5vw,40px);letter-spacing:.5px;color:#4a2c12}
+.folha .cap{margin:6px 0 2px;font-size:14px;text-transform:uppercase;letter-spacing:3px;color:var(--vermelho);font-weight:bold}
+.folha h2{margin:0 0 12px;font-size:22px;color:#5a3d1e}
+.folha p{font-size:16px;line-height:1.5;margin:0 auto 18px;max-width:480px}
+.folha button{font-size:20px;padding:10px 28px}
+</style>
+</head>
+<body>
+<div id="jogo">
+  <canvas id="tela"></canvas>
+  <div id="hud">
+    <div class="painel num"><span>Trigo no celeiro</span><span class="v" id="v-trigo">0</span></div>
+    <div class="painel num"><span>Madeira</span><span class="v" id="v-madeira">0</span></div>
+    <div class="painel" id="dia"><div class="linha"><span class="sol"></span><span id="t-dia">Dia 1 de 5</span></div><div class="barra"><i id="b-dia"></i></div></div>
+    <div class="painel num" id="meta"><span>Meta do escriba do faraó</span><span class="v" id="v-meta"></span><small>cestos</small></div>
+    <button class="painel" id="btn-dica">💡 Dica do escriba</button>
+  </div>
+  <div id="esq">
+    <div class="painel" id="objetivo"></div>
+    <div class="painel" id="caderno"></div>
+  </div>
+  <div class="painel" id="proposta"></div>
+  <div class="painel" id="selecao"></div>
+  <div class="painel" id="fala"><span class="quem"></span><span class="txt"></span></div>
+  <div id="fundo-modal"><div id="modal"></div></div>
+  <div id="inicio"><div class="rolo"><div class="vara"></div><div class="folha">
+    <div class="friso"></div>
+    <h1>Era da Matemática</h1>
+    <div class="cap">Capítulo I · Egito</div>
+    <h2>Depois da cheia</h2>
+    <p>Todo ano o rio Nilo transborda e cobre as terras da aldeia. Quando a água baixa, as cercas sumiram. Ajude as famílias a medir de novo os seus terrenos, colher o trigo e encher o celeiro antes que o escriba do faraó chegue.</p>
+    <button id="b-comecar">Começar</button>
+    <div class="friso baixo"></div>
+  </div><div class="vara"></div></div></div>
+</div>
+<script>
+'use strict';
+/* ===== AJUSTES: mude estes números para deixar o jogo mais fácil ou mais difícil ===== */
+const DIA_SEG = 55;          // duração de cada dia, em segundos
+const DIAS = 5;              // dias até o escriba do faraó chegar
+const META = 100;            // cestos de trigo que o escriba quer ver no celeiro
+const CERCA_NEFERU = 40;     // pedaços de cerca da família de Neferu
+const AREA_IPI = 36;         // quadradinhos de terra que a família de Ipi quer
+const MADEIRA_INICIAL = 10;  // madeira no começo (cada pedaço de cerca gasta 1)
+const CRESCER_SEG = 14;      // segundos para o trigo amadurecer
+const CARGA = 5;             // quanto um aldeão carrega por viagem
+const TEMPO_COLHER = 0.6;    // segundos para colher 1 quadradinho de trigo
+const TEMPO_CORTAR = 0.9;    // segundos para cortar 1 de madeira
+const VELOCIDADE = 1.8;      // casas do mapa por segundo
+const RAPIDO = new URLSearchParams(location.search).has('rapido') ? 8 : 1; // ?rapido acelera (para testes)
+
+const $ = id => document.getElementById(id);
+const N = 20, TW = 64, TH = 32;
+// terra que a cheia deixou: uma faixa para cada família
+const ZONAS = { terreno1:{x:1, y:3, w:12, d:12, nome:'Terra de Neferu'}, terreno2:{x:14, y:3, w:6, d:12, nome:'Terra de Ipi'} };
+const zonaAtual = () => ZONAS[E.fase] || null;
+
+/* ===== Estado ===== */
+const E = {
+  tempo:0, pausado:false, acabou:false, fase:'terreno1', diaAvisado:1, tFase:0,
+  estoque:{trigo:0, madeira:MADEIRA_INICIAL},
+  aldeoes:[], recursos:[], campos:[], desenho:null, tentativas:[],
+  celeiro:{x:9, y:17, w:2, d:2}, cabana:{x:13, y:17, w:2, d:2},
+  visitante:null, selecionado:null, seta:null
+};
+const centro = b => [b.x+b.w/2, b.y+b.d/2];
+[[2.5,17],[4.5,18.2],[6,17],[1.5,18.8],[17.5,17.4],[18.5,18.8]].forEach(([x,y])=>E.recursos.push({tipo:'madeira',x,y,qtd:30,max:30}));
+function novoAldeao(x,y){ const a={x,y,estado:'parado',alvo:null,carga:0,tipoCarga:null,t:0}; E.aldeoes.push(a); return a; }
+novoAldeao(11.5,16.4); novoAldeao(12.6,16.5);
+
+/* ===== Tela ===== */
+const cv=$('tela'), ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1,escala=1,ox=0,oy=0,T=0;
+const p = (x,y) => [(x-y)*TW/2, (x+y)*TH/2];
+const inv = (mx,my) => { const a=mx/(TW/2), b=my/(TH/2); return [(a+b)/2,(b-a)/2]; };
+function ajustar(){
+  DPR=window.devicePixelRatio||1; W=cv.clientWidth; H=cv.clientHeight;
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+  escala=Math.min((W-20)/(N*TW+20),(H-90)/(N*TH+60),1.6);
+  ox=W/2; oy=70+Math.max(0,((H-80)-(N*TH)*escala)/2);
+}
+window.addEventListener('resize',ajustar); ajustar();
+
+/* ===== Textos na tela ===== */
+let timerFala=null;
+function falar(quem,html,seg=8){ const f=$('fala'); f.querySelector('.quem').textContent=quem; f.querySelector('.txt').innerHTML=html; f.style.display='block';
+  clearTimeout(timerFala); timerFala=setTimeout(()=>f.style.display='none',seg*1000); }
+function objetivo(html){ $('objetivo').innerHTML=html; }
+function abrirModal(html){ $('modal').innerHTML=html; $('fundo-modal').style.display='flex'; E.pausado=true; }
+function fecharModal(){ $('fundo-modal').style.display='none'; E.pausado=false; }
+const mostrado={trigo:-1,madeira:-1};
+function renderNumeros(){
+  for(const t of ['trigo','madeira']) if(mostrado[t]!==E.estoque[t]){
+    const el=$('v-'+t); el.textContent=E.estoque[t];
+    if(mostrado[t]>=0&&E.estoque[t]>mostrado[t]){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+    mostrado[t]=E.estoque[t]; }
+}
+
+/* ===== Terrenos: medidas ===== */
+function retDoDesenho(d){ const x=Math.min(d.x0,d.x1), y=Math.min(d.y0,d.y1); return {x,y,w:Math.abs(d.x1-d.x0)+1,d:Math.abs(d.y1-d.y0)+1}; }
+const perimetro = r => 2*(r.w+r.d);
+const area = r => r.w*r.d;
+function cruza(a,b){ return a.x<b.x+b.w && b.x<a.x+a.w && a.y<b.y+b.d && b.y<a.y+a.d; }
+function naZona(tx,ty,z){ z=z||zonaAtual(); return !!z&&tx>=z.x&&tx<z.x+z.w&&ty>=z.y&&ty<z.y+z.d; }
+const emAlgumaZona=(x,y)=>naZona(x,y,ZONAS.terreno1)||naZona(x,y,ZONAS.terreno2);
+function avaliar(r){
+  const P=perimetro(r), A=area(r);
+  if(E.campos.some(c=>cruza(c,r))) return {ok:false,msg:'Esse terreno invade o de outra família.'};
+  if(E.fase==='terreno1'){
+    if(P>CERCA_NEFERU) return {ok:false,msg:`Falta cerca: precisa de ${P}, a família só tem ${CERCA_NEFERU}.`};
+    return {ok:true,msg:P<CERCA_NEFERU?`Cabe! Sobram ${CERCA_NEFERU-P} pedaços de cerca.`:'Cabe! Usa toda a cerca.'};
+  }
+  if(A!==AREA_IPI) return {ok:false,msg:`A família quer exatamente ${AREA_IPI} quadradinhos. Este tem ${A}.`};
+  if(P>E.estoque.madeira) return {ok:false,msg:`A área está certa! Mas falta madeira: a cerca gasta ${P} e você tem ${E.estoque.madeira}.`};
+  return {ok:true,msg:'Área certa e madeira suficiente.'};
+}
+function renderProposta(){
+  const el=$('proposta'), d=E.desenho;
+  if(!d){ el.style.display='none'; return; }
+  const r=retDoDesenho(d), av=avaliar(r);
+  const t2=E.fase==='terreno2';
+  el.style.display='block';
+  el.innerHTML=`<div class="medidas"><span>Medidas<b>${r.w} × ${r.d}</b></span><span>Cerca usada<b>${perimetro(r)}</b></span><span>${t2?'Área':'Trigo previsto'}<b>${area(r)}</b></span></div>
+    <div class="msg ${av.ok?'bom':'ruim'}">${av.msg}</div>
+    ${d.solto?`<div class="botoes">${av.ok?'<button id="b-cercar">Cercar aqui</button>':''}<button class="sec" id="b-apagar">Desenhar de novo</button></div>`:''}`;
+  if(d.solto){ $('b-apagar').onclick=()=>{E.desenho=null; renderProposta();}; if(av.ok) $('b-cercar').onclick=()=>cercar(r); }
+}
+function anotar(r){
+  if(E.tentativas.some(t=>t.w===r.w&&t.d===r.d||t.w===r.d&&t.d===r.w)) return;
+  if(E.fase==='terreno2'&&area(r)!==AREA_IPI) return;
+  if(E.fase==='terreno1'&&perimetro(r)>CERCA_NEFERU) return;
+  E.tentativas.push({w:r.w,d:r.d}); renderCaderno();
+}
+function renderCaderno(){
+  const el=$('caderno');
+  if(!E.tentativas.length||!(E.fase==='terreno1'||E.fase==='terreno2')){ el.style.display='none'; return; }
+  const t2=E.fase==='terreno2';
+  const lista=E.tentativas.map(t=>({...t,P:perimetro(t),A:area(t)}));
+  const melhor = t2 ? Math.min(...lista.map(t=>t.P)) : Math.max(...lista.map(t=>t.A));
+  el.style.display='block';
+  el.innerHTML=`<h3>Caderno do escriba: terrenos que você testou</h3><table><tr><th>Medidas</th><th>Cerca</th><th>${t2?'Área':'Trigo'}</th></tr>`+
+    lista.map(t=>`<tr class="${(t2?t.P:t.A)===melhor&&lista.length>1?'melhor':''}"><td>${t.w} × ${t.d}</td><td>${t.P}</td><td>${t.A}</td></tr>`).join('')+'</table>';
+}
+function cercar(r){
+  const c={...r, dono:E.fase==='terreno1'?'Neferu':'Ipi', estado:'crescendo', t:0, tiles:[]};
+  for(let i=0;i<r.w;i++) for(let j=0;j<r.d;j++) c.tiles.push({x:r.x+i,y:r.y+j,ok:true});
+  E.campos.push(c); E.desenho=null; renderProposta();
+  const P=perimetro(r), A=area(r);
+  if(E.fase==='terreno1'){
+    E.fase='crescer1'; E.tFase=0; E.tentativas=[]; renderCaderno();
+    $('meta').style.display='flex'; $('v-meta').textContent=META;
+    falar('Ancião', A===100 ? 'Que terreno! 100 cestos de trigo com só 40 pedaços de cerca. Nenhum formato rende mais.'
+      : `Bom terreno: vai render ${A} cestos. Dizem que, com a mesma cerca, existe um formato que rende ainda mais…`, 10);
+    E.seta=E.recursos[2];
+    objetivo('O trigo está crescendo. Enquanto isso, clique num <b>aldeão</b> e depois numa <b>palmeira</b> para cortar madeira.');
+  } else {
+    E.estoque.madeira-=P; E.fase='colheita'; E.tentativas=[]; renderCaderno();
+    falar('Família de Ipi', P===24 ? 'Perfeito! Com 36 de terra, nenhum formato gasta menos que 24 de cerca. E o nosso filho vai ajudar na colheita!'
+      : `Obrigado! Gastou ${P} de cerca. Será que dava para gastar menos? Nosso filho vai ajudar na colheita!`, 10);
+    const v=E.visitante; novoAldeao(v.x,v.y); E.visitante=null;
+    objetivo('Colha o trigo e guarde no <b>celeiro</b> antes de o escriba do faraó chegar.');
+  }
+}
+
+/* ===== Aldeões ===== */
+const dist=(a,b,x,y)=>Math.hypot(a-x,b-y);
+function palmeiraProxima(x,y){ let m=null,dm=1e9; for(const r of E.recursos) if(r.qtd>0){ const d=dist(r.x,r.y,x,y); if(d<dm){dm=d;m=r;} } return m; }
+function tileProximo(c,x,y){ let m=null,dm=1e9; for(const t of c.tiles) if(t.ok&&!t.reservado){ const d=dist(t.x+.5,t.y+.5,x,y); if(d<dm){dm=d;m=t;} } return m; }
+function mover(a,tx,ty,dt){ const d=dist(a.x,a.y,tx,ty); if(d<0.05) return true; const s=Math.min(d,VELOCIDADE*dt); a.x+=(tx-a.x)/d*s; a.y+=(ty-a.y)/d*s; a.andando=true; return false; }
+function liberar(a){ if(a.tile){ a.tile.reservado=false; a.tile=null; } }
+function mandar(a,alvo){
+  liberar(a);
+  const tipo = alvo.tiles ? 'trigo' : 'madeira';
+  if(a.carga>0 && a.tipoCarga!==tipo){ a.estado='voltando'; a.depois=alvo; } else { a.alvo=alvo; a.estado='indo'; }
+  if(tipo==='madeira'&&E.seta&&E.seta.tipo==='madeira') E.seta=null;
+  if(tipo==='trigo'&&E.seta&&E.seta.tiles) E.seta=null;
+}
+function atualizarAldeao(a,dt){
+  a.andando=false;
+  const campo = a.alvo && a.alvo.tiles;
+  if(a.estado==='indo'){
+    if(campo){
+      if(!a.tile){ a.tile=tileProximo(a.alvo,a.x,a.y); if(!a.tile){ a.estado=a.carga?'voltando':'parado'; return; } a.tile.reservado=true; }
+      if(mover(a,a.tile.x+.5,a.tile.y+.5,dt)){ a.estado='colhendo'; a.t=0; }
+    } else {
+      if(!a.alvo||a.alvo.qtd<=0){ a.alvo=palmeiraProxima(a.x,a.y); if(!a.alvo){ a.estado=a.carga?'voltando':'parado'; return; } }
+      if(dist(a.x,a.y,a.alvo.x,a.alvo.y)<0.55){ a.estado='colhendo'; a.t=0; } else mover(a,a.alvo.x,a.alvo.y+0.35,dt);
+    }
+  } else if(a.estado==='colhendo'){
+    a.t+=dt;
+    if(campo){ if(a.t>=TEMPO_COLHER){ a.tile.ok=false; liberar(a); a.carga++; a.tipoCarga='trigo';
+        a.estado = (a.carga>=CARGA || !tileProximo(a.alvo,a.x,a.y)) ? 'voltando' : 'indo'; } }
+    else { const r=a.alvo; if(r.qtd<=0){ a.estado=a.carga?'voltando':'indo'; return; }
+      if(a.t>=TEMPO_CORTAR){ a.t=0; r.qtd--; a.carga++; a.tipoCarga='madeira'; if(a.carga>=CARGA) a.estado='voltando'; } }
+  } else if(a.estado==='voltando'){
+    const [dx,dy]=centro(a.tipoCarga==='trigo'?E.celeiro:E.cabana);
+    if(dist(a.x,a.y,dx,dy)<1.4){
+      if(a.carga>0){ E.estoque[a.tipoCarga]+=a.carga; flutuantes.push({x:dx,y:dy,t0:T,txt:`+${a.carga} ${a.tipoCarga}`,cor:a.tipoCarga==='trigo'?'#ffd968':'#f0c08a'}); a.carga=0; }
+      if(a.depois){ a.alvo=a.depois; a.depois=null; a.estado='indo'; }
+      else if(a.alvo && (a.alvo.tiles ? tileProximo(a.alvo,a.x,a.y) : a.alvo.qtd>0||palmeiraProxima(a.x,a.y))) a.estado='indo';
+      else a.estado='parado';
+    } else mover(a,dx,dy-0.2,dt);
+  } else if(a.estado==='andando'){ if(mover(a,a.dest[0],a.dest[1],dt)) a.estado='parado'; }
+}
+
+/* ===== Cliques ===== */
+function ptJogo(e){ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left-ox)/escala,(e.clientY-r.top-oy)/escala]; }
+const dentro=(b,x,y)=>x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.d;
+const desenhando=()=>E.fase==='terreno1'||E.fase==='terreno2';
+cv.addEventListener('pointerdown',e=>{
+  if(E.pausado||E.acabou) return;
+  const [mx,my]=ptJogo(e);
+  for(const a of E.aldeoes){ const [sx,sy]=p(a.x,a.y); if(Math.hypot(mx-sx,my-(sy-14))<16){ E.selecionado=a; return; } }
+  if(E.visitante){ const [sx,sy]=p(E.visitante.x,E.visitante.y); if(Math.hypot(mx-sx,my-(sy-14))<20){ abrirVisita(); return; } }
+  for(const r of E.recursos){ if(r.qtd<=0) continue; const [sx,sy]=p(r.x,r.y); if(Math.hypot(mx-sx,my-(sy-32))<26){
+      if(!E.selecionado){ falar('Escriba','Primeiro clique num aldeão, depois diga o que ele deve fazer.',5); return; }
+      mandar(E.selecionado,r); return; } }
+  const [fx,fy]=inv(mx,my), tx=Math.floor(fx), ty=Math.floor(fy);
+  if(desenhando() && naZona(tx,ty)){
+    E.desenho={x0:tx,y0:ty,x1:tx,y1:ty,solto:false}; cv.setPointerCapture(e.pointerId); renderProposta(); return; }
+  const campo=E.campos.find(c=>dentro(c,fx,fy));
+  if(campo){
+    if(campo.estado==='crescendo'){ falar('Escriba','Esse trigo ainda está crescendo. Espere amadurecer.',5); return; }
+    if(!E.selecionado){ falar('Escriba','Primeiro clique num aldeão, depois no campo.',5); return; }
+    mandar(E.selecionado,campo); return; }
+  if(E.selecionado && fx>0.3&&fx<N-0.3&&fy>2.3&&fy<N-0.3){ const a=E.selecionado; liberar(a); a.estado='andando'; a.dest=[fx,fy]; a.alvo=null; }
+});
+cv.addEventListener('pointermove',e=>{
+  const d=E.desenho; if(!d||d.solto) return;
+  const [mx,my]=ptJogo(e); let [fx,fy]=inv(mx,my);
+  const Z=zonaAtual(); if(!Z) return;
+  const tx=Math.max(Z.x,Math.min(Z.x+Z.w-1,Math.floor(fx))), ty=Math.max(Z.y,Math.min(Z.y+Z.d-1,Math.floor(fy)));
+  if(tx!==d.x1||ty!==d.y1){ d.x1=tx; d.y1=ty; renderProposta(); }
+});
+cv.addEventListener('pointerup',()=>{ const d=E.desenho; if(!d||d.solto) return; d.solto=true; anotar(retDoDesenho(d)); renderProposta(); });
+
+/* ===== Família de Ipi ===== */
+function abrirVisita(){
+  abrirModal(`<h2>A família de Ipi</h2>
+    <p>“A cheia levou a nossa cerca também. Queremos <b>exatamente ${AREA_IPI} quadradinhos</b> de terra.”</p>
+    <p>“Mas agora a cerca é feita da madeira da aldeia: <b>cada pedaço de cerca gasta 1 de madeira</b>. Escolha o formato que gasta <b>menos cerca</b>.”</p>
+    <div class="botoes"><button id="b-ok">Vamos medir</button></div>`);
+  $('b-ok').onclick=()=>{ fecharModal(); E.fase='terreno2'; E.tFase=0; E.seta=null; E.tentativas=[]; renderCaderno();
+    objetivo(`Desenhe o terreno de Ipi na <b>faixa de terra da direita</b>: <b>${AREA_IPI} quadradinhos</b>, gastando o mínimo de cerca. Sem madeira suficiente? Mande aldeões às palmeiras.`); };
+}
+
+/* ===== Dicas do escriba (3 níveis por etapa: empurrãozinho, caminho, quase a resposta) ===== */
+const DICAS = {
+  terreno1:[
+    'Teste formatos bem diferentes: compridos e estreitos, ou mais "quadradinhos". O caderno do escriba anota todos.',
+    `Olhe no caderno: com a mesma cerca (${CERCA_NEFERU}), quando os dois lados ficam mais parecidos, o trigo aumenta ou diminui?`,
+    `Tente um terreno com os quatro lados iguais. Com ${CERCA_NEFERU} de cerca, cada lado fica com ${CERCA_NEFERU} ÷ 4 = ${CERCA_NEFERU/4}.`],
+  crescer1:['Enquanto o trigo cresce, clique num aldeão e depois numa palmeira para juntar madeira. Ela vai fazer falta logo, logo!'],
+  visita2:['Clique no viajante de roupa azul, perto da casa.'],
+  terreno2:[
+    `A área precisa ser exatamente ${AREA_IPI}. Que pares de números, multiplicados, dão ${AREA_IPI}? Por exemplo, 4 × 9.`,
+    'Agora compare a cerca de cada um: um terreno 9 × 4 gasta 9 + 4 + 9 + 4 = 26. Algum outro gasta menos?',
+    'Quanto mais parecidos os lados, menos cerca. Tente 6 × 6. Se faltar madeira, mande aldeões às palmeiras.'],
+  colheita:['Clique num aldeão e depois num campo dourado. Coloque todos para colher: cada viagem leva 5 cestos ao celeiro.']
+};
+const nivelDica={}, dicaOferecida={};
+function abrirDica(){
+  $('btn-dica').classList.remove('chamando');
+  const lista=DICAS[E.fase]||['Continue assim! Você está indo bem.'];
+  const n=Math.max(1,nivelDica[E.fase]||1); nivelDica[E.fase]=n;
+  const nomes=['Empurrãozinho','Caminho','Quase a resposta'];
+  let h='<h2>💡 Dica do escriba</h2>';
+  for(let i=0;i<n;i++) h+=`<div class="dica-item">${lista.length>1?`<b>${nomes[i]}:</b> `:''}${lista[i]}</div>`;
+  h+=`<div class="botoes">${n<lista.length?'<button class="sec" id="b-mais">Mais uma dica</button>':''}<button id="b-ok">Voltar ao jogo</button></div>`;
+  abrirModal(h);
+  $('b-ok').onclick=fecharModal;
+  if($('b-mais')) $('b-mais').onclick=()=>{ nivelDica[E.fase]=n+1; abrirDica(); };
+}
+$('btn-dica').onclick=()=>{ if(!E.acabou&&$('inicio').style.display==='none') abrirDica(); };
+function oferecerDica(){
+  if(dicaOferecida[E.fase]||nivelDica[E.fase]) return;
+  let travou=false;
+  if(E.fase==='terreno1') travou = E.tFase>60 || (E.tentativas.length>=4 && !E.tentativas.some(t=>area(t)===100));
+  if(E.fase==='terreno2') travou = E.tFase>60 || (E.tentativas.length>=3 && !E.tentativas.some(t=>perimetro(t)===24));
+  if(E.fase==='visita2') travou = E.tFase>25;
+  if(travou){ dicaOferecida[E.fase]=true; $('btn-dica').classList.add('chamando');
+    falar('Escriba','Está difícil? Clique em 💡 Dica do escriba, no alto da tela.',7); }
+}
+
+/* ===== Desenho ===== */
+function losango(x,y,cor){ ctx.beginPath(); let q=p(x,y); ctx.moveTo(q[0],q[1]); q=p(x+1,y); ctx.lineTo(q[0],q[1]); q=p(x+1,y+1); ctx.lineTo(q[0],q[1]); q=p(x,y+1); ctx.lineTo(q[0],q[1]); ctx.closePath(); ctx.fillStyle=cor; ctx.fill(); }
+function poli(pts,cor){ ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(const q of pts.slice(1)) ctx.lineTo(q[0],q[1]); ctx.closePath(); ctx.fillStyle=cor; ctx.fill(); }
+function contorno(r,cor,larg,traco){
+  const A=p(r.x,r.y),B=p(r.x+r.w,r.y),C=p(r.x+r.w,r.y+r.d),D=p(r.x,r.y+r.d);
+  ctx.setLineDash(traco||[]); ctx.strokeStyle=cor; ctx.lineWidth=larg; ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.lineTo(C[0],C[1]); ctx.lineTo(D[0],D[1]); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+}
+/* textura: números aleatórios fixos para cada casa do mapa */
+const RUIDO=[]; { let s=7; for(let i=0;i<N*N*4;i++){ s=(s*16807)%2147483647; RUIDO.push(s/2147483647); } }
+const rr=(x,y,k=0)=>RUIDO[(((y*N+x)*4+k)%RUIDO.length+RUIDO.length)%RUIDO.length];
+const cor=(r,g,b,f)=>`rgb(${Math.round(Math.min(255,r*f))},${Math.round(Math.min(255,g*f))},${Math.round(Math.min(255,b*f))})`;
+const BASE={agua:[74,138,196],margem:[128,156,78],lama:[136,104,66],areia:[230,200,140]};
+const tipoChao=(x,y)=>y<2?'agua':y===2?'margem':emAlgumaZona(x,y)?'lama':'areia';
+function desenharChao(){
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    const t=tipoChao(x,y), b=BASE[t];
+    let f=0.94+rr(x,y)*0.1;
+    if(t==='agua') f=(y===0?0.88:0.98)+Math.sin(T*1.2+x*0.8+y)*0.025;
+    losango(x,y,cor(...b,f));
+    if(t==='areia'){ ctx.fillStyle='rgba(150,105,55,.28)'; for(let k=1;k<3;k++){ const [sx,sy]=p(x+rr(x,y,k),y+rr(x,y,k+1)); ctx.fillRect(sx,sy,2,1.5); } }
+    if(t==='lama'&&rr(x,y,3)>0.78){ const [sx,sy]=p(x+.5,y+.5); ctx.fillStyle='rgba(255,255,255,.07)'; ctx.beginPath(); ctx.ellipse(sx,sy,14,5,0,0,7); ctx.fill(); }
+  }
+  const esp=22;
+  for(let x=0;x<N;x++){ const a=p(x,N),b=p(x+1,N); poli([a,b,[b[0],b[1]+esp],[a[0],a[1]+esp]],cor(...BASE[tipoChao(x,N-1)],0.62)); }
+  for(let y=0;y<N;y++){ const a=p(N,y),b=p(N,y+1); poli([a,b,[b[0],b[1]+esp],[a[0],a[1]+esp]],cor(...BASE[tipoChao(N-1,y)],0.48)); }
+  ctx.lineCap='round';
+  for(let x=0;x<N;x++) for(let k=0;k<2;k++){
+    const [sx,sy]=p(x+0.25+0.5*k+rr(x,2,k)*0.2,2.2+rr(x,2,k+2)*0.3); const h=13+rr(x,2,3)*6, bal=Math.sin(T*1.5+x+k)*1.5;
+    ctx.strokeStyle='#4f7d2a'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+bal,sy-h); ctx.stroke();
+    ctx.strokeStyle='#6f9a35'; ctx.lineWidth=1.2; ctx.beginPath();
+    for(let i=-2;i<=2;i++){ ctx.moveTo(sx+bal,sy-h); ctx.lineTo(sx+bal+i*2.6,sy-h-4+Math.abs(i)*1.2); } ctx.stroke();
+  }
+  for(const [fase,Z] of Object.entries(ZONAS)){
+    const ativa=E.fase===fase;
+    ctx.strokeStyle=ativa?'rgba(255,240,210,.45)':'rgba(255,240,210,.12)'; ctx.lineWidth=1;
+    for(let i=0;i<=Z.w;i++){ const a=p(Z.x+i,Z.y),b=p(Z.x+i,Z.y+Z.d); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); }
+    for(let j=0;j<=Z.d;j++){ const a=p(Z.x,Z.y+j),b=p(Z.x+Z.w,Z.y+j); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); }
+    if(ativa){ contorno(Z,'rgba(255,230,150,'+(0.5+0.3*Math.sin(T*3))+')',3); }
+  }
+  ctx.lineWidth=1.6;
+  for(let i=0;i<46;i++){ const xx=(i*2.37+T*0.35)%N, yy=0.15+((i*0.618)%1)*1.7; const al=0.25+0.35*Math.max(0,Math.sin(T*2+i));
+    const [sx,sy]=p(xx,yy); ctx.strokeStyle=`rgba(255,255,255,${al})`; ctx.beginPath(); ctx.moveTo(sx-6,sy); ctx.lineTo(sx+6,sy); ctx.stroke(); }
+}
+function desenharCampos(){
+  for(const c of E.campos){
+    const k=c.estado==='crescendo'?c.t/CRESCER_SEG:1, maduro=c.estado==='maduro';
+    for(const t of c.tiles){
+      const f=0.95+rr(t.x,t.y)*0.08;
+      losango(t.x,t.y, !t.ok?cor(178,148,88,f) : maduro?cor(206,164,62,f) : cor(120+20*k,104+50*k,62,f));
+    }
+    ctx.lineCap='round';
+    ctx.strokeStyle='#8a6a34'; ctx.lineWidth=1.2; ctx.beginPath();
+    for(const t of c.tiles) if(!t.ok) for(let q=0;q<4;q++){ const [sx,sy]=p(t.x+0.25+0.5*(q%2),t.y+0.25+0.5*(q>>1)); ctx.moveTo(sx-2,sy); ctx.lineTo(sx-2,sy-2.5); ctx.moveTo(sx+2,sy); ctx.lineTo(sx+2,sy-2.5); }
+    ctx.stroke();
+    const cabecas=[];
+    ctx.strokeStyle=maduro?'#b8861f':'#5f9a2e'; ctx.lineWidth=1.3; ctx.beginPath();
+    for(const t of c.tiles) if(t.ok) for(let q=0;q<4;q++){
+      const [sx,sy]=p(t.x+0.25+0.5*(q%2),t.y+0.25+0.5*(q>>1)); const h=maduro?12:2+9*k, bal=Math.sin(T*2+t.x*0.7+t.y*0.3)*(maduro?1.6:0.6);
+      for(const o of [-2.2,0,2.2]){ ctx.moveTo(sx+o,sy); ctx.lineTo(sx+o+bal,sy-h); if(maduro) cabecas.push([sx+o+bal,sy-h]); }
+    }
+    ctx.stroke();
+    ctx.fillStyle='#ecc75c'; for(const [x,y] of cabecas){ ctx.beginPath(); ctx.ellipse(x,y-1.5,1.4,3,0,0,7); ctx.fill(); }
+    const A=p(c.x,c.y),B=p(c.x+c.w,c.y),C=p(c.x+c.w,c.y+c.d),D=p(c.x,c.y+c.d);
+    ctx.strokeStyle='#7a5228'; ctx.lineWidth=1.6;
+    for(const h of [4,8]){ ctx.beginPath(); ctx.moveTo(A[0],A[1]-h); ctx.lineTo(B[0],B[1]-h); ctx.lineTo(C[0],C[1]-h); ctx.lineTo(D[0],D[1]-h); ctx.closePath(); ctx.stroke(); }
+    const postes=[]; for(let i=0;i<=c.w;i++){ postes.push([c.x+i,c.y],[c.x+i,c.y+c.d]); } for(let j=1;j<c.d;j++){ postes.push([c.x,c.y+j],[c.x+c.w,c.y+j]); }
+    for(const [x,y] of postes){ const [sx,sy]=p(x,y); ctx.fillStyle='#5a3818'; ctx.fillRect(sx-1.5,sy-11,3,11); ctx.fillStyle='#9a7040'; ctx.fillRect(sx-1.5,sy-11,3,2); }
+  }
+}
+function desenharDesenho(rotulos){
+  const d=E.desenho; if(!d) return;
+  const r=retDoDesenho(d), ok=avaliar(r).ok;
+  if(rotulos){
+    ctx.font='bold 16px Trebuchet MS'; ctx.textAlign='center'; ctx.lineWidth=4; ctx.strokeStyle='#2a2118'; ctx.fillStyle='#fff';
+    const a=p(r.x+r.w/2,r.y+r.d), b=p(r.x+r.w,r.y+r.d/2);
+    ctx.strokeText(r.w,a[0]-10,a[1]+20); ctx.fillText(r.w,a[0]-10,a[1]+20);
+    ctx.strokeText(r.d,b[0]+12,b[1]+20); ctx.fillText(r.d,b[0]+12,b[1]+20);
+    return;
+  }
+  for(let i=0;i<r.w;i++) for(let j=0;j<r.d;j++) losango(r.x+i,r.y+j, ok?'rgba(120,200,90,.45)':'rgba(220,70,50,.45)');
+  contorno(r, ok?'#f7f0c8':'#ffd0c0', 2.5, [6,4]);
+}
+function caixa(b,h,cores){ const A=p(b.x,b.y),B=p(b.x+b.w,b.y),C=p(b.x+b.w,b.y+b.d),D=p(b.x,b.y+b.d),up=q=>[q[0],q[1]-h];
+  poli([D,C,up(C),up(D)],cores[0]); poli([C,B,up(B),up(C)],cores[1]); poli([up(A),up(B),up(C),up(D)],cores[2]); return {A,B,C,D,up}; }
+function sombra(b){ const pts=[p(b.x,b.y),p(b.x+b.w,b.y),p(b.x+b.w,b.y+b.d),p(b.x,b.y+b.d)].map(q=>[q[0]+20,q[1]+5]); poli(pts,'rgba(70,40,10,.22)'); }
+function desenharCabana(){
+  const b=E.cabana; sombra(b);
+  const k=caixa(b,32,['#d4b282','#b08e5e','#ead5aa']); const {A,B,C,D,up}=k, u5=q=>[q[0],q[1]-5];
+  poli([D,C,u5(C),u5(D)],'#b8935f'); poli([C,B,u5(B),u5(C)],'#93734a');
+  ctx.strokeStyle='#f6e7c6'; ctx.lineWidth=2; ctx.beginPath(); const t=[up(A),up(B),up(C),up(D)]; ctx.moveTo(t[0][0],t[0][1]); for(const q of t.slice(1)) ctx.lineTo(q[0],q[1]); ctx.closePath(); ctx.stroke();
+  const mx=(D[0]+C[0])/2,my=(D[1]+C[1])/2;
+  poli([[mx-8,my-4],[mx+8,my+4],[mx+8,my-18],[mx-8,my-26]],'#4a2f16');
+  ctx.strokeStyle='#7a5a30'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(mx-11,my-28); ctx.lineTo(mx+11,my-17); ctx.stroke();
+  for(const f of [0.3,0.7]){ const wx=C[0]+(B[0]-C[0])*f, wy=C[1]+(B[1]-C[1])*f; poli([[wx-4,wy-19],[wx+4,wy-23],[wx+4,wy-16],[wx-4,wy-12]],'#4a2f16'); }
+  const toldo=[[b.x+0.15,b.y+0.15],[b.x+0.95,b.y+0.15],[b.x+0.95,b.y+0.95],[b.x+0.15,b.y+0.95]].map(([x,y])=>up(p(x,y)));
+  ctx.strokeStyle='#6d441d'; ctx.lineWidth=2; ctx.beginPath(); for(const q of toldo){ ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0],q[1]-13); } ctx.stroke();
+  poli(toldo.map(q=>[q[0],q[1]-13]),'#c9a052');
+  ctx.strokeStyle='#a8823a'; ctx.lineWidth=1; ctx.beginPath(); for(let i=1;i<5;i++){ const f=i/5; const a=[toldo[0][0]+(toldo[1][0]-toldo[0][0])*f,toldo[0][1]+(toldo[1][1]-toldo[0][1])*f-13], c2=[toldo[3][0]+(toldo[2][0]-toldo[3][0])*f,toldo[3][1]+(toldo[2][1]-toldo[3][1])*f-13]; ctx.moveTo(a[0],a[1]); ctx.lineTo(c2[0],c2[1]); } ctx.stroke();
+}
+function silo(x,y,r,h,base){
+  const [cx,cy0]=p(x,y), cy=cy0-base;
+  const g=ctx.createLinearGradient(cx-r,0,cx+r,0); g.addColorStop(0,'#ecd09a'); g.addColorStop(0.55,'#cfa566'); g.addColorStop(1,'#9c7240');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(cx-r,cy-h); ctx.lineTo(cx-r,cy); ctx.ellipse(cx,cy,r,r*0.5,0,Math.PI,0,true); ctx.lineTo(cx+r,cy-h); ctx.lineTo(cx,cy-h-r*1.3); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(90,60,25,.45)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.ellipse(cx,cy-h,r,r*0.45,0,0,Math.PI); ctx.stroke();
+  ctx.fillStyle='#4a2f16'; ctx.fillRect(cx-3,cy-h*0.55,6,6);
+}
+function desenharCeleiro(){
+  const c=E.celeiro; sombra(c); caixa(c,6,['#b8935f','#93734a','#d8bd8a']);
+  for(const [dx,dy] of [[0.55,0.55],[1.45,0.6],[0.6,1.45],[1.45,1.45]]) silo(c.x+dx,c.y+dy,11,18,6);
+}
+function desenharPalmeira(r){
+  const [sx,sy]=p(r.x,r.y);
+  ctx.fillStyle='rgba(70,40,10,.2)'; ctx.beginPath(); ctx.ellipse(sx+14,sy+3,18,6,0,0,7); ctx.fill();
+  if(r.qtd<=0){ ctx.fillStyle='#8a5a2a'; ctx.fillRect(sx-4,sy-7,8,7); ctx.fillStyle='#c49a62'; ctx.fillRect(sx-4,sy-8,8,2); return; }
+  const alt=34+20*r.qtd/r.max, tx=sx+6, ty=sy-alt, bal=Math.sin(T*1.5+r.x)*1.5;
+  ctx.lineCap='round'; ctx.strokeStyle='#8a5a2a'; ctx.lineWidth=7; ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(sx-6,sy-alt/2,tx,ty); ctx.stroke();
+  ctx.strokeStyle='#5e3a18'; ctx.lineWidth=1.2; ctx.beginPath();
+  for(let i=1;i<7;i++){ const t=i/7, bx=(1-t)*(1-t)*sx+2*(1-t)*t*(sx-6)+t*t*tx, by=(1-t)*(1-t)*sy+2*(1-t)*t*(sy-alt/2)+t*t*ty; ctx.moveTo(bx-3.5,by); ctx.lineTo(bx+3.5,by-1); } ctx.stroke();
+  const folha=(a,i)=>{ const ex=tx+Math.cos(a)*24+bal, ey=ty+Math.sin(a)*9+9, cx=tx+Math.cos(a)*14, cy=ty+Math.sin(a)*5-9;
+    ctx.fillStyle=i%2?'#3f7622':'#4e8a2a'; ctx.beginPath(); ctx.moveTo(tx,ty); ctx.quadraticCurveTo(cx,cy-3,ex,ey); ctx.quadraticCurveTo(cx,cy+4,tx,ty); ctx.fill(); };
+  const angs=[...Array(8)].map((_,i)=>i/8*Math.PI*2+0.2);
+  angs.forEach((a,i)=>{ if(Math.sin(a)<0) folha(a,i); });
+  ctx.fillStyle='#b8641e'; for(const [dx,dy] of [[-3,4],[1,6],[4,4],[-1,8],[3,8]]){ ctx.beginPath(); ctx.arc(tx+dx,ty+dy,1.8,0,7); ctx.fill(); }
+  angs.forEach((a,i)=>{ if(Math.sin(a)>=0) folha(a,i); });
+}
+function desenharPessoa(a,roupa,visitante){
+  const [sx,sy0]=p(a.x,a.y), passo=a.andando?Math.sin(T*10):0, sy=sy0-(a.andando?Math.abs(passo)*1.5:0), pele='#9a6234';
+  ctx.fillStyle='rgba(70,40,10,.25)'; ctx.beginPath(); ctx.ellipse(sx+3,sy0+1,9,4,0,0,7); ctx.fill();
+  if(a===E.selecionado){ ctx.strokeStyle='#ffd23a'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.ellipse(sx,sy0,12+Math.sin(T*4),6,0,0,7); ctx.stroke(); }
+  ctx.lineCap='round'; ctx.strokeStyle=pele; ctx.lineWidth=3; ctx.beginPath();
+  ctx.moveTo(sx-2,sy-10); ctx.lineTo(sx-2-passo*3,sy0); ctx.moveTo(sx+2,sy-10); ctx.lineTo(sx+2+passo*3,sy0); ctx.stroke();
+  const fimRoupa = visitante ? sy-4 : sy-8;
+  ctx.fillStyle=pele; ctx.beginPath(); ctx.moveTo(sx-4.5,sy-14); ctx.lineTo(sx+4.5,sy-14); ctx.lineTo(sx+4,sy-24); ctx.lineTo(sx-4,sy-24); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=roupa; ctx.beginPath(); ctx.moveTo(sx-5,sy-15); ctx.lineTo(sx+5,sy-15); ctx.lineTo(sx+7,fimRoupa); ctx.lineTo(sx-7,fimRoupa); ctx.closePath(); ctx.fill();
+  if(visitante){ ctx.fillRect(sx-4.5,sy-24,9,10); }
+  ctx.strokeStyle='#2f78a8'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(sx-4,sy-22.5); ctx.lineTo(sx+4,sy-22.5); ctx.stroke();
+  const trab=a.estado==='colhendo', s=trab?Math.sin(T*12)*4:0;
+  ctx.strokeStyle=pele; ctx.lineWidth=2.4; ctx.beginPath();
+  ctx.moveTo(sx-4.5,sy-22); ctx.lineTo(sx-6+passo*3,sy-13);
+  ctx.moveTo(sx+4.5,sy-22); ctx.lineTo(trab?sx+10:sx+6-passo*3, trab?sy-17+s:sy-13); ctx.stroke();
+  ctx.fillStyle=pele; ctx.beginPath(); ctx.arc(sx,sy-29,5,0,7); ctx.fill();
+  ctx.fillStyle='#1b1b1b'; ctx.beginPath(); ctx.moveTo(sx-5.6,sy-25); ctx.lineTo(sx-5.6,sy-30); ctx.quadraticCurveTo(sx,sy-38,sx+5.6,sy-30); ctx.lineTo(sx+5.6,sy-25); ctx.lineTo(sx+3,sy-27); ctx.lineTo(sx+3,sy-30); ctx.lineTo(sx-3,sy-30); ctx.lineTo(sx-3,sy-27); ctx.closePath(); ctx.fill();
+  if(trab){ const hx=sx+10, hy=sy-17+s;
+    if(a.alvo&&a.alvo.tiles){ ctx.strokeStyle='#c9c9c9'; ctx.lineWidth=1.8; ctx.beginPath(); ctx.arc(hx+3,hy-3,4,Math.PI*0.9,Math.PI*1.9); ctx.stroke(); }
+    else { ctx.strokeStyle='#6d441d'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(hx,hy); ctx.lineTo(hx+4,hy-8); ctx.stroke(); ctx.fillStyle='#8f8f8f'; ctx.fillRect(hx+2,hy-11,5,4); } }
+  if(a.carga>0){ if(a.tipoCarga==='trigo'){ ctx.strokeStyle='#c8961f'; ctx.lineWidth=1.5; ctx.beginPath(); for(let i=-4;i<=4;i+=2){ ctx.moveTo(sx-7,sy-36+i*0.3); ctx.lineTo(sx+8,sy-40+i); } ctx.stroke(); ctx.fillStyle='#8a6a34'; ctx.fillRect(sx-1,sy-41,3,7); }
+    else { ctx.fillStyle='#8a5a2a'; ctx.fillRect(sx-9,sy-41,18,4); ctx.fillStyle='#6d441d'; ctx.fillRect(sx-9,sy-37,18,3); } }
+  if(visitante){ ctx.fillStyle='#fff7e0'; ctx.strokeStyle='#8a6a3a'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(sx+14,sy-44,10,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#3b2a14'; ctx.font='bold 14px Trebuchet MS'; ctx.textAlign='center'; ctx.fillText('?',sx+14,sy-39); }
+}
+function desenharSeta(){
+  const s=E.seta; if(!s) return; let x,y,alt=50;
+  if(s.tiles){ x=s.x+s.w/2; y=s.y+s.d/2; alt=20; } else if(s.tipo==='madeira'){ x=s.x; y=s.y; alt=76; } else { x=s.x; y=s.y; }
+  const [sx,sy]=p(x,y), top=sy-alt-14+Math.sin(T*5)*5;
+  ctx.fillStyle='#e0452b'; ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(sx-11,top-14); ctx.lineTo(sx+11,top-14); ctx.lineTo(sx,top+4); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+const flutuantes=[];
+function desenharFlutuantes(){
+  ctx.font='bold 16px Trebuchet MS'; ctx.textAlign='center'; ctx.lineWidth=4;
+  for(let i=flutuantes.length-1;i>=0;i--){ const f=flutuantes[i], idade=T-f.t0; if(idade>1.6){ flutuantes.splice(i,1); continue; }
+    const [sx,sy]=p(f.x,f.y), y=sy-50-idade*28; ctx.globalAlpha=Math.min(1,(1.6-idade)*1.5);
+    ctx.strokeStyle='#2a1a08'; ctx.strokeText(f.txt,sx,y); ctx.fillStyle=f.cor; ctx.fillText(f.txt,sx,y); ctx.globalAlpha=1; }
+}
+function desenharCeu(){
+  const w=cv.width,h=cv.height, g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#f5d59c'); g.addColorStop(0.5,'#e2aa6c'); g.addColorStop(1,'#9a6438'); ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle='#d99d60'; ctx.beginPath(); ctx.moveTo(0,h*0.42); for(let x=0;x<=w;x+=w/8) ctx.quadraticCurveTo(x+w/16,h*0.36+(x%3)*6,x+w/8,h*0.42); ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.fill();
+  ctx.fillStyle='#c98a50'; ctx.beginPath(); ctx.moveTo(0,h*0.55); for(let x=0;x<=w;x+=w/6) ctx.quadraticCurveTo(x+w/12,h*0.49,x+w/6,h*0.55); ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.fill();
+}
+function desenharVinheta(){
+  ctx.setTransform(1,0,0,1,0,0); const w=cv.width,h=cv.height, g=ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*0.35,w/2,h/2,Math.max(w,h)*0.75);
+  g.addColorStop(0,'rgba(60,30,5,0)'); g.addColorStop(1,'rgba(60,30,5,.35)'); ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+}
+function desenhar(){
+  ctx.setTransform(1,0,0,1,0,0); desenharCeu();
+  ctx.setTransform(DPR*escala,0,0,DPR*escala,DPR*ox,DPR*oy);
+  desenharChao(); desenharCampos(); desenharDesenho(false);
+  const ents=[{d:E.cabana.x+E.cabana.y+2,f:desenharCabana},{d:E.celeiro.x+E.celeiro.y+2,f:desenharCeleiro}];
+  for(const r of E.recursos) ents.push({d:r.x+r.y,f:()=>desenharPalmeira(r)});
+  for(const a of E.aldeoes) ents.push({d:a.x+a.y,f:()=>desenharPessoa(a,'#f4efe2')});
+  if(E.visitante) ents.push({d:E.visitante.x+E.visitante.y,f:()=>desenharPessoa(E.visitante,'#5b7fb5',true)});
+  ents.sort((a,b)=>a.d-b.d).forEach(e=>e.f());
+  desenharDesenho(true); desenharFlutuantes(); desenharSeta(); desenharVinheta();
+}
+const NOMES={parado:'parado, esperando ordem',indo:'a caminho',voltando:'levando para guardar',andando:'andando'};
+function renderSelecao(){ const a=E.selecionado, el=$('selecao'); if(!a){ el.style.display='none'; return; }
+  let txt=NOMES[a.estado]; if(a.estado==='colhendo') txt=a.alvo&&a.alvo.tiles?'colhendo trigo':'cortando madeira';
+  el.style.display='block'; el.innerHTML=`<b>Aldeão</b><br>${txt}`; }
+
+/* ===== Linha do tempo ===== */
+function atualizar(dt){
+  if(E.acabou) return;
+  if(E.tempo>=DIAS*DIA_SEG){ terminar(); return; }
+  E.tempo+=dt; E.tFase+=dt; oferecerDica();
+  const dia=Math.min(DIAS,Math.floor(E.tempo/DIA_SEG)+1);
+  $('t-dia').textContent=`Dia ${dia} de ${DIAS}`; $('b-dia').style.width=((E.tempo%DIA_SEG)/DIA_SEG*100)+'%';
+  if(dia>E.diaAvisado){ E.diaAvisado=dia; if(dia===DIAS) falar('Ancião','Último dia! O escriba do faraó chega ao pôr do sol para conferir o celeiro.',9); }
+  for(const a of E.aldeoes) atualizarAldeao(a,dt);
+  for(const c of E.campos) if(c.estado==='crescendo'){ c.t+=dt; if(c.t>=CRESCER_SEG){ c.estado='maduro';
+      falar('Escriba',`O trigo da família de ${c.dono} amadureceu! Clique num aldeão e depois no campo para colher.`,8);
+      if(!E.seta||E.seta.tipo==='madeira') E.seta=c; } }
+  if(E.visitante&&E.visitante.estado==='vindo'){ E.visitante.andando=false; if(mover(E.visitante,13.5,15.8,dt)) E.visitante.estado='parado'; }
+  if(E.fase==='crescer1'&&E.tFase>18&&!E.visitante){
+    E.fase='visita2'; E.tFase=0; E.visitante={x:19.5,y:19.5,estado:'vindo'}; E.seta=E.visitante;
+    falar('Escriba','Outra família chegou pedindo terra. Clique nela para ouvir o pedido.',8);
+    objetivo('A <b>família de Ipi</b> chegou. Clique no viajante de azul.'); }
+}
+function terminar(){
+  E.acabou=true; E.seta=null; E.desenho=null; renderProposta();
+  const ok=E.estoque.trigo>=META;
+  const campos=E.campos.map(c=>`<li>Família de ${c.dono}: ${c.w} × ${c.d}, cerca ${perimetro(c)}, área ${area(c)}</li>`).join('')||'<li>Nenhum terreno foi cercado.</li>';
+  const mapa=`<div class="jornada" aria-label="Linha da jornada">
+    <div class="parada ${ok?'feita':'atual'}"><span>${ok?'✓':'1'}</span>Egito</div><div class="trilha ${ok?'aberta':''}"></div>
+    <div class="parada"><span>?</span>${ok?'Rota aberta':'???'}</div><div class="trilha"></div>
+    <div class="parada"><span>?</span>???</div></div>`;
+  abrirModal(ok?`<h2>O escriba do faraó aprovou!</h2>
+      <p>O celeiro guardou <b>${E.estoque.trigo}</b> cestos de trigo. A meta era <b>${META}</b>.</p><ul>${campos}</ul>
+      <p>Uma nova rota se abriu na sua jornada…</p>${mapa}
+      <p><i>Agora o trigo vira pão. Mas como dividir os pães entre os trabalhadores de forma justa?</i></p>
+      <p><small>Continua na próxima fase: os pães e as frações.</small></p><div class="botoes"><button id="b-de-novo">Jogar de novo</button></div>`
+    :`<h2>O celeiro ficou abaixo da meta</h2>
+      <p>O escriba contou <b>${E.estoque.trigo}</b> cestos. A meta era <b>${META}</b>.</p><ul>${campos}</ul>
+      <p>Dica: com os mesmos 40 pedaços de cerca, alguns formatos de terreno rendem muito mais trigo. E coloque vários aldeões para colher.</p>${mapa}
+      <div class="botoes"><button id="b-de-novo">Tentar de novo</button></div>`);
+  $('b-de-novo').onclick=()=>location.reload();
+}
+
+/* ===== Início ===== */
+E.pausado=true;
+$('b-comecar').onclick=()=>{ $('inicio').style.display='none'; E.pausado=false;
+  falar('Ancião','A cheia baixou e levou as cercas. Cada família precisa da sua terra de volta. Comece pela família de Neferu: ela tem 40 pedaços de cerca.',14); };
+objetivo(`Desenhe o terreno de <b>Neferu</b>: arraste o mouse sobre a terra escura que está piscando. A família tem <b>${CERCA_NEFERU} pedaços de cerca</b>. Cada quadradinho cercado dá 1 cesto de trigo.`);
+let ultimo=performance.now();
+function quadro(agora){
+  const dt=Math.min(0.2,(agora-ultimo)/1000); ultimo=agora; T+=dt;
+  if(!E.pausado) atualizar(dt*RAPIDO);
+  renderNumeros(); renderSelecao(); desenhar();
+  requestAnimationFrame(quadro);
+}
+requestAnimationFrame(quadro);
+window.jogo=E;
+</script>
+</body>
+</html>
