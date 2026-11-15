@@ -33,11 +33,12 @@
 .obra span.feita{background:var(--verde);color:#fff;border-color:#2c5a18}
 .obra span.atual{background:var(--ouro);color:#fff}
 #etiquetas{position:absolute;inset:0;pointer-events:none}
-.etq{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;background:#f7ead0;border:2px solid var(--borda);border-radius:8px;padding:4px 8px;text-align:center;font-size:12px;font-weight:bold;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.3);white-space:nowrap}
+.etq{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;background:#f7ead0;border:2px solid var(--borda);border-radius:8px;padding:4px 8px;text-align:center;font-size:12px;font-weight:bold;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.3);white-space:nowrap;color:var(--tinta)}
 .etq .glifos svg{height:24px}
 .etq:hover{background:#fff3cf}
 .etq.sumida{display:none}
 .etq.brilha{animation:brilho 1s ease-in-out infinite alternate}
+canvas.plantando{cursor:crosshair}
 </style>
 </head>
 <body>
@@ -45,8 +46,9 @@
   <canvas id="tela"></canvas>
   <div id="etiquetas"></div>
   <div class="hud">
-    <div class="painel num"><span>🌾 Cargas de trigo</span><span class="v" id="v-cargas">0</span></div>
     <div class="painel num" id="bolsa" title="Suas moedas de cobre"><span>👛 Bolsa</span><span id="g-bolsa"></span></div>
+    <div class="painel num"><span>🌱 Sementes</span><span class="v" id="v-sementes">0</span></div>
+    <div class="painel num"><span>🌾 Cargas</span><span class="v" id="v-cargas">0</span></div>
     <div class="painel num"><span>Celeiro</span><div class="obra" id="obra"></div></div>
     <button class="sec direita" id="b-dica">💡 Dica do escriba</button>
     <button class="sec" id="b-som">🔊 Som</button>
@@ -60,56 +62,66 @@
 <script>
 'use strict';
 /* ===== AJUSTES ===== */
-const TEMPO_CARGA = 3;   // segundos para os aldeões colherem 1 carga de trigo
-const MAX_CARGAS = 5;    // cargas que cabem esperando venda
+const CRESCER = 7;               // segundos para o trigo amadurecer
+const POR_SACO = 4;              // canteiros que um saco de sementes planta
+const PRECO_SEMENTE = [13, 18, 24];   // preço do saco em cada parte da obra
+const PRECO_AJUDANTE = [45, 70]; // preço do 1º e do 2º ajudante
+const BOLSA_INICIAL = 30;        // moedas no começo (3 arcos)
 const OBRA = [{nome:'a base', precisa:45}, {nome:'os silos', precisa:124}, {nome:'o telhado', precisa:230}];
 
 const $ = id => document.getElementById(id);
 let timerFala=null;
 function falar(quem,txt,seg=8){ const f=$('fala'); f.querySelector('.quem').textContent=quem; f.querySelector('.txt').innerHTML=txt; f.style.display='block'; clearTimeout(timerFala); timerFala=setTimeout(()=>f.style.display='none',seg*1000); }
 function objetivo(h){ $('objetivo').innerHTML=h; }
+const modalAberto = ()=>$('fundo-modal').style.display==='flex';
 function abrir(h){ if(!modalAberto()) Som.tocar('abrir'); $('modal').innerHTML=h; $('fundo-modal').style.display='flex'; $('modal').scrollTop=0; }
 function fechar(){ $('fundo-modal').style.display='none'; }
-const modalAberto = ()=>$('fundo-modal').style.display==='flex';
 function tremer(){ Som.tocar('ruim'); const m=$('modal'); m.classList.remove('treme'); void m.offsetWidth; m.classList.add('treme'); }
 $('b-vila').onclick=()=>location.href='egito.html';
 botaoSom($('b-som'));
 
 /* ===== Estado ===== */
-const E = { licaoVista:false, cargas:0, prodT:0, bolsa:{lotus:0,rolo:0,arco:0,traco:0}, estagio:0, colocados:0,
-  ofertas:[0,0], ofertaT:0, carroca:null, encomendou:false, acabou:false };
+const E = { licaoVista:false, cargas:0, sementes:0, bolsa:partes(BOLSA_INICIAL), estagio:0, colocados:0,
+  ofertas:[0,0], ofertaT:0, carroca:null, encomendou:false, acabou:false, vendas:0, ajudantes:0, emprestimos:0, plantou:false, colheu:false };
 const totalBolsa = ()=>valorDe(E.bolsa);
+const precoSemente = ()=>PRECO_SEMENTE[Math.min(E.estagio,2)];
 function bolsaHTML(q){
   let h=''; for(const t of ORDEM){ const n=q[t]; if(!n) continue;
     h += n<=9 ? `<span class="glifos">${glifosHTML({[t]:n})}</span> ` : `<span class="glifos"><span class="g">${HIERO[t]}</span></span><span class="x">×${n}</span>`; }
   return h || '<span class="glifos"><span class="vazio">vazia</span></span>';
 }
 function renderHud(){
-  $('v-cargas').textContent=E.cargas;
+  $('v-cargas').textContent=E.cargas; $('v-sementes').textContent=E.sementes;
   $('g-bolsa').innerHTML=bolsaHTML(E.bolsa);
   $('obra').innerHTML=OBRA.map((o,i)=>`<span class="${i<E.estagio?'feita':i===E.estagio&&E.licaoVista?'atual':''}">${i<E.estagio?'✓ ':''}${o.nome.replace(/^(a|os|o) /,'')}</span>`).join('');
 }
 function renderObjetivo(){
   if(!E.licaoVista){ objetivo('Clique no <b>escriba</b> (de colar dourado) para aprender como os egípcios escreviam números.'); return; }
   if(E.acabou) return;
-  const o=OBRA[E.estagio], faltam=o.precisa-E.colocados;
-  objetivo(`<b>Obra do celeiro: ${o.nome}.</b> Faltam <b>${faltam}</b> tijolos (cada um custa 1 cobre).<br>`+
-    (E.carroca ? 'Os tijolos estão a caminho…' :
-     !E.encomendou && totalBolsa()<faltam ? 'Venda trigo ao mercador que paga <b>mais</b>. Leia os preços nas placas!' :
-     'Quando tiver cobre suficiente, clique no <b>oleiro</b> para encomendar os tijolos.'));
+  const o=OBRA[E.estagio], faltam=o.precisa-E.colocados, plantados=canteiros.filter(c=>c.estado!=='vazio').length, maduros=canteiros.filter(c=>c.estado==='maduro').length;
+  let passo;
+  if(!E.plantou && E.sementes===0) passo='Compre <b>sementes</b> no vendedor 🌱 (perto do campo).';
+  else if(!E.plantou) passo='Clique (ou arraste o mouse) nos <b>canteiros vazios</b> do campo para plantar.';
+  else if(!E.colheu) passo= maduros ? 'O trigo amadureceu! Clique no <b>trigo dourado</b> para colher.' : 'O trigo está crescendo… logo ele fica dourado.';
+  else if(E.vendas===0) passo='Venda as cargas ao mercador que paga <b>mais</b>. Leia os preços nas placas!';
+  else if(E.carroca) passo='Os tijolos estão a caminho…';
+  else passo = `Para o celeiro: faltam <b>${faltam}</b> tijolos (1 cobre cada). Plante, colha, venda e encomende ao <b>oleiro</b>. Guarde moedas para as sementes!`;
+  objetivo(`<b>Obra do celeiro: ${o.nome}.</b><br>${passo}`);
 }
 
 /* ===== Vila ===== */
 const cena = new Cena($('tela'), 12, 120);
 const tipo = (x,y)=> y<2?'agua': y===2?'margem':'areia';
 const campo = {x:1, y:3, w:4, d:3};
+const canteiros = []; for(let i=0;i<campo.w;i++) for(let j=0;j<campo.d;j++) canteiros.push({x:campo.x+i, y:campo.y+j, estado:'vazio', t:0, reservado:false});
 const celeiro = {x:5, y:6, w:2, d:2, prog:0};
 const cabana = {x:8, y:3.5, w:2, d:2};
 const palmeiras = [{x:1.2,y:11},{x:11,y:6.5},{x:10.8,y:11},{x:6,y:3.4}];
 const escriba = {x:8.4, y:8.6};
 const mercadores = [{x:10.4, y:6.2, toldo:'#2f6fa0', roupa:'#5b7fb5'}, {x:6.2, y:10.6, toldo:'#a8321f', roupa:'#8a3a6a'}];
-const oleiro = {x:2.6, y:8.6, roupa:'#8a5a2a'};
-const aldeoes = [{x:3,y:5,ida:true,t:0},{x:2,y:4.5,ida:false,t:1.5}];
+const oleiro = {x:3.6, y:10.2, roupa:'#8a5a2a'};
+const sementeiro = {x:1.6, y:7.6, toldo:'#3f7a26', roupa:'#3f7a26'};
+const ajudantes = [];
 
 function barraca(m){
   const b={x:m.x-0.45,y:m.y-0.45,w:0.9,d:0.9}; cena.sombra(b);
@@ -125,56 +137,122 @@ function carroca(){
   ctx.fillStyle='#8a5a2a'; ctx.fillRect(sx-14,sy-14,28,10); ctx.fillStyle='#b5562e'; for(let i=0;i<4;i++) ctx.fillRect(sx-12+i*6,sy-20,5,6);
   ctx.fillStyle='#3b2a14'; ctx.beginPath(); ctx.arc(sx-9,sy-3,4,0,7); ctx.arc(sx+9,sy-3,4,0,7); ctx.fill();
 }
-function animarAldeoes(dt){
-  for(const a of aldeoes){
-    const alvo = a.ida ? [celeiro.x+0.6, celeiro.y+2.3] : [campo.x+1.5+Math.sin(a.t)*1, campo.y+1.5];
-    if(!E.licaoVista){ a.andando=false; a.trabalhando=false; continue; }
-    if(moverPara(a,alvo[0],alvo[1],1.4,dt)){ a.ida=!a.ida; }
-    a.carga = a.ida ? 1 : 0; a.tipoCarga='trigo';
+function desenharCanteiros(){
+  const ctx=cena.ctx;
+  for(const c of canteiros){
+    if(c.estado==='vazio'){ cena.losango(c.x,c.y, (c.x+c.y)%2?'#8c6b45':'#86663f');
+      const a=cena.p(c.x+0.2,c.y+0.5), b=cena.p(c.x+0.8,c.y+0.5), a2=cena.p(c.x+0.5,c.y+0.2), b2=cena.p(c.x+0.5,c.y+0.8);
+      ctx.strokeStyle='rgba(60,35,15,.35)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.moveTo(a2[0],a2[1]); ctx.lineTo(b2[0],b2[1]); ctx.stroke(); }
+    else cena.campo({x:c.x,y:c.y,w:1,d:1}, c.estado==='maduro'?1:Math.min(1,c.t/CRESCER), c.estado==='maduro', true);
+    if(c.estado==='maduro' && Math.sin(cena.T*4+c.x+c.y)>0.85){ const [sx,sy]=cena.p(c.x+0.5,c.y+0.5); ctx.fillStyle='rgba(255,250,200,.9)'; ctx.beginPath(); ctx.arc(sx+4,sy-16,2,0,7); ctx.fill(); }
+  }
+  cena.cerca(campo);
+}
+/* ajudantes: pegam o canteiro mais perto que precise de trabalho */
+function trabalhoPara(a){
+  let melhor=null, dm=1e9;
+  for(const c of canteiros){ if(c.reservado) continue; const quer = c.estado==='maduro' || (c.estado==='vazio' && E.sementes>0);
+    if(!quer) continue; const d=Math.hypot(c.x+0.5-a.x,c.y+0.5-a.y); if(d<dm){ dm=d; melhor=c; } }
+  return melhor;
+}
+function atualizarAjudantes(dt){
+  for(const a of ajudantes){
+    a.trabalhando=false;
+    if(a.estado==='parado'){ const c=trabalhoPara(a); if(c){ c.reservado=true; a.alvo=c; a.estado='indo'; } else { a.andando=false; } }
+    else if(a.estado==='indo'){ if(moverPara(a,a.alvo.x+0.5,a.alvo.y+0.75,1.8,dt)){ a.estado='trabalhando'; a.t=0; } }
+    else if(a.estado==='trabalhando'){ a.trabalhando=true; a.t+=dt; if(a.t>=0.8){ const c=a.alvo; c.reservado=false;
+        if(c.estado==='maduro'){ colher(c,true); a.carga=1; a.tipoCarga='trigo'; a.estado='voltando'; }
+        else if(c.estado==='vazio' && E.sementes>0){ plantar(c,true); a.estado='parado'; }
+        else a.estado='parado'; } }
+    else if(a.estado==='voltando'){ if(moverPara(a,celeiro.x+0.6,celeiro.y+2.3,1.8,dt)){ a.carga=0; E.cargas++; renderHud(); renderObjetivo(); cena.flutuar(celeiro.x+1,celeiro.y+2,'+1 carga','#ffd968'); Som.tocar('carga'); a.estado='parado'; } }
   }
 }
 /* etiquetas sobre a cena (placas clicáveis) */
 const ETQ = {
   m0: {alvo:mercadores[0], alt:44, acao:()=>vender(0)},
   m1: {alvo:mercadores[1], alt:44, acao:()=>vender(1)},
+  sementes: {alvo:sementeiro, alt:44, acao:()=>comprarSementes()},
   oleiro: {alvo:oleiro, alt:58, acao:()=>encomendar(), html:'🧱 Oleiro<br><small>encomendar tijolos</small>'},
+  ajudante: {alvo:{x:cabana.x+1,y:cabana.y+1}, alt:62, acao:()=>contratar()},
   escriba: {alvo:escriba, alt:58, acao:()=>clicarEscriba(), html:'Clique em mim!'}
 };
 for(const [id,e] of Object.entries(ETQ)){ const d=document.createElement('button'); d.className='etq'; d.type='button'; d.id='etq-'+id; d.onclick=()=>{ if(!modalAberto()) e.acao(); }; e.el=d; if(e.html) d.innerHTML=e.html; $('etiquetas').appendChild(d); }
 function posicionarEtiquetas(){
   for(const e of Object.values(ETQ)){ const [sx,sy]=cena.p(e.alvo.x,e.alvo.y); e.el.style.left=(cena.ox+sx*cena.escala)+'px'; e.el.style.top=(cena.oy+(sy-e.alt)*cena.escala)+'px'; }
+  const ativo=E.licaoVista&&!E.acabou;
   ETQ.escriba.el.classList.toggle('sumida', E.licaoVista);
-  for(const id of ['m0','m1','oleiro']) ETQ[id].el.classList.toggle('sumida', !E.licaoVista||E.acabou);
-  ETQ.oleiro.el.classList.toggle('brilha', E.licaoVista && !E.carroca && totalBolsa()>=OBRA[Math.min(E.estagio,2)].precisa-E.colocados);
+  for(const id of ['m0','m1','sementes']) ETQ[id].el.classList.toggle('sumida', !ativo);
+  ETQ.oleiro.el.classList.toggle('sumida', !ativo || E.vendas===0);
+  ETQ.ajudante.el.classList.toggle('sumida', !ativo || E.vendas===0 || E.ajudantes>=PRECO_AJUDANTE.length);
+  ETQ.sementes.el.classList.toggle('brilha', ativo && E.sementes===0 && !canteiros.some(c=>c.estado!=='vazio') && totalBolsa()>=precoSemente());
+  ETQ.oleiro.el.classList.toggle('brilha', ativo && !E.carroca && E.vendas>0 && totalBolsa()>=OBRA[Math.min(E.estagio,2)].precisa-E.colocados);
+  for(const i of [0,1]) ETQ['m'+i].el.classList.toggle('brilha', ativo && E.cargas>0 && E.vendas===0);
 }
-function renderOfertas(){ for(const i of [0,1]) ETQ['m'+i].el.innerHTML=`<span class="glifos">${glifosHTML(E.ofertas[i])}</span><br><small>cobres por carga</small>`; }
+function renderPlacas(){
+  for(const i of [0,1]) ETQ['m'+i].el.innerHTML=`<span class="glifos">${glifosHTML(E.ofertas[i])}</span><br><small>cobres por carga</small>`;
+  ETQ.sementes.el.innerHTML=`🌱 <span class="glifos">${glifosHTML(precoSemente())}</span><br><small>1 saco = ${POR_SACO} canteiros</small>`;
+  if(E.ajudantes<PRECO_AJUDANTE.length) ETQ.ajudante.el.innerHTML=`👤 Ajudante <span class="glifos">${glifosHTML(PRECO_AJUDANTE[E.ajudantes])}</span>`;
+}
 
 let ultimo=performance.now();
 function quadro(agora){
-  const dt=Math.min(0.1,(agora-ultimo)/1000); ultimo=agora;
+  const dt=Math.max(0,Math.min(0.1,(agora-ultimo)/1000)); ultimo=Math.max(ultimo,agora);
   if(E.licaoVista && !E.acabou){
-    E.prodT+=dt; if(E.prodT>=TEMPO_CARGA){ E.prodT=0; if(E.cargas<MAX_CARGAS){ E.cargas++; renderHud(); cena.flutuar(celeiro.x+1,celeiro.y+2,'+1 carga','#ffd968'); } }
-    E.ofertaT+=dt; if(E.ofertaT>=12 && !modalAberto()){ novasOfertas(); }
+    for(const c of canteiros) if(c.estado==='crescendo'){ c.t+=dt; if(c.t>=CRESCER){ c.estado='maduro'; renderObjetivo(); } }
+    E.ofertaT+=dt; if(E.ofertaT>=14 && !modalAberto()) novasOfertas();
+    atualizarAjudantes(dt); verificarTravado();
   }
   if(E.carroca){ E.carroca.k=Math.min(1,E.carroca.k+dt/3.5); if(E.carroca.k>=1&&!E.carroca.chegou){ E.carroca.chegou=true; chegaramTijolos(); } }
   const meta=(E.estagio+E.colocados/OBRA[Math.min(E.estagio,2)].precisa)/3;
   if(celeiro.prog<meta) celeiro.prog=Math.min(meta,celeiro.prog+dt/2);
-  animarAldeoes(dt);
-  cena.comecar(dt); cena.chao(tipo); cena.campo(campo,1,true);
+  cena.comecar(dt); cena.chao(tipo); desenharCanteiros();
   if(celeiro.prog<=0.01) cena.contorno(celeiro,'rgba(120,80,40,.55)',2,[6,5]);
   const ents=[{d:cabana.x+cabana.y+2,f:()=>cena.cabana(cabana)},{d:celeiro.x+celeiro.y+2,f:()=>cena.celeiro(celeiro,Math.max(0.02,celeiro.prog))}];
   for(const p of palmeiras) ents.push({d:p.x+p.y,f:()=>cena.palmeira(p)});
-  for(const m of mercadores){ ents.push({d:m.x+m.y-0.5,f:()=>barraca(m)}); ents.push({d:m.x+m.y+0.6,f:()=>cena.pessoa({x:m.x-0.1,y:m.y+0.75},m.roupa,{longa:true})}); }
-  ents.push({d:oleiro.x+oleiro.y,f:()=>{ cena.pessoa(oleiro,oleiro.roupa,{colar:'#b5562e'}); }});
+  for(const m of [...mercadores,sementeiro]){ ents.push({d:m.x+m.y-0.5,f:()=>barraca(m)}); ents.push({d:m.x+m.y+0.6,f:()=>cena.pessoa({x:m.x-0.1,y:m.y+0.75},m.roupa,{longa:true})}); }
+  ents.push({d:oleiro.x+oleiro.y,f:()=>cena.pessoa(oleiro,oleiro.roupa,{colar:'#b5562e'})});
   ents.push({d:oleiro.x+oleiro.y-0.8,f:()=>{ const b={x:oleiro.x-1.3,y:oleiro.y-1.2,w:0.9,d:0.9}; cena.caixa(b,8,['#b5562e','#93452a','#cf7148']); }});
   ents.push({d:escriba.x+escriba.y,f:()=>cena.pessoa(escriba,'#f4efe2',{papiro:true,colar:'#c98a1b'})});
-  for(const a of aldeoes) ents.push({d:a.x+a.y,f:()=>cena.pessoa(a,'#f4efe2')});
+  for(const a of ajudantes) ents.push({d:a.x+a.y,f:()=>cena.pessoa(a,'#f4efe2')});
   if(E.carroca) ents.push({d:99,f:carroca});
   ents.sort((a,b)=>a.d-b.d).forEach(e=>e.f());
   cena.desenharFlutuantes(); cena.vinheta();
   posicionarEtiquetas();
   requestAnimationFrame(quadro);
 }
+
+/* ===== Plantar e colher com o mouse (clicar ou arrastar) ===== */
+let segurando=false, ultimoAviso=-1e9;
+function canteiroEm(e){ const [mx,my]=cena.ptJogo(e); const [fx,fy]=cena.inv(mx,my); return canteiros.find(c=>fx>=c.x&&fx<c.x+1&&fy>=c.y&&fy<c.y+1); }
+function plantar(c, peloAjudante){
+  if(E.sementes<=0) return false;
+  E.sementes--; c.estado='crescendo'; c.t=0; E.plantou=true; cena.emitir(c.x+0.5,c.y+0.5,'poeira',3);
+  if(!peloAjudante) Som.tocar('plantar'); renderHud(); renderObjetivo(); return true;
+}
+function colher(c, peloAjudante){
+  c.estado='vazio'; c.t=0; E.colheu=true; cena.emitir(c.x+0.5,c.y+0.5,'brilho',5);
+  if(!peloAjudante){ E.cargas++; Som.tocar('carga'); cena.flutuar(c.x+0.5,c.y+0.5,'+1 carga','#ffd968'); }
+  renderHud(); renderObjetivo();
+}
+function agirNoCanteiro(c){
+  if(!c || c.reservado) return;
+  if(c.estado==='maduro') colher(c);
+  else if(c.estado==='vazio'){
+    if(!plantar(c) && performance.now()-ultimoAviso>3000){ ultimoAviso=performance.now(); falar('Escriba','Acabaram as sementes. Compre mais no vendedor 🌱.',5); }
+  }
+}
+$('tela').addEventListener('pointerdown',e=>{
+  if(modalAberto()) return; const [mx,my]=cena.ptJogo(e);
+  const perto=(a,r)=>{ const [sx,sy]=cena.p(a.x,a.y); return Math.hypot(mx-sx,my-(sy-16))<(r||24); };
+  if(perto(escriba)){ clicarEscriba(); return; }
+  if(!E.licaoVista||E.acabou) return;
+  const c=canteiroEm(e);
+  if(c){ segurando=true; $('tela').setPointerCapture(e.pointerId); $('tela').classList.add('plantando'); agirNoCanteiro(c); return; }
+  if(perto(sementeiro,30)) comprarSementes(); else if(perto(mercadores[0],30)) vender(0); else if(perto(mercadores[1],30)) vender(1);
+  else if(E.vendas>0 && perto(oleiro)) encomendar();
+});
+$('tela').addEventListener('pointermove',e=>{ if(segurando) agirNoCanteiro(canteiroEm(e)); });
+$('tela').addEventListener('pointerup',()=>{ segurando=false; $('tela').classList.remove('plantando'); });
 
 /* ===== Montador de números ===== */
 function montador(el, aoMudar){
@@ -184,7 +262,7 @@ function montador(el, aoMudar){
     <div class="botoes"><button type="button" class="sec" data-a="desfazer">Desfazer</button><button type="button" class="sec" data-a="limpar">Limpar</button></div>`;
   const band=el.querySelector('.bandeja');
   const render=()=>{ band.innerHTML=glifosHTML(q); aoMudar&&aoMudar(q); };
-  el.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{ q[b.dataset.t]++; hist.push(b.dataset.t); render(); });
+  el.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{ Som.tocar('clique'); q[b.dataset.t]++; hist.push(b.dataset.t); render(); });
   el.querySelector('[data-a=desfazer]').onclick=()=>{ const t=hist.pop(); if(t){ q[t]--; render(); } };
   el.querySelector('[data-a=limpar]').onclick=()=>{ ORDEM.forEach(t=>q[t]=0); hist.length=0; render(); };
   render(); return q;
@@ -225,16 +303,66 @@ function licao(i){
   const q=montador($('m-licao'),()=>{ $('av-licao').textContent=''; });
   $('b-prox').onclick=()=>{
     const v=valorDe(q), av=$('av-licao');
-    if(v===213 && canonico(q)){ av.className='aviso bom'; av.textContent='Isso! 2 rolos, 1 arco e 3 traços: 200 + 10 + 3 = 213.';
+    if(v===213 && canonico(q)){ Som.tocar('bom'); av.className='aviso bom'; av.textContent='Isso! 2 rolos, 1 arco e 3 traços: 200 + 10 + 3 = 213.';
       $('b-prox').textContent='Ir para a vila'; $('b-prox').onclick=comecarJogo; }
     else { tremer(); av.className='aviso ruim'; av.textContent = v===213 ? 'O valor está certo, mas tem 10 ou mais desenhos iguais. Troque dez deles por um desenho maior.' : `Seu número vale ${v}. Precisamos de 213.`; }
   };
 }
 function comecarJogo(){
-  fechar(); E.licaoVista=true; novasOfertas(); renderHud(); renderObjetivo(); Som.tocar('bom'); Som.musica(true);
-  falar('Escriba','Vamos construir o celeiro! Os aldeões colhem o trigo. Você vende o trigo no mercado, compra tijolos do oleiro e paga com moedas de cobre. Aqui todos só entendem <b>hieróglifos</b>!',12);
+  fechar(); E.licaoVista=true; novasOfertas(); renderPlacas(); renderHud(); renderObjetivo(); Som.tocar('bom'); Som.musica(true);
+  falar('Escriba','Vamos construir o celeiro! Você tem algumas moedas de cobre na bolsa. Compre sementes, plante, colha e venda o trigo. Aqui todos só entendem <b>hieróglifos</b>!',12);
 }
 
+/* ===== Pagar com a bolsa (usado para sementes, ajudantes e tijolos) ===== */
+let pg=null;
+function pagarComBolsa(o){
+  pg={...o, bolsa:{...E.bolsa}, pag:{lotus:0,rolo:0,arco:0,traco:0}};
+  abrir(`<h2>${o.titulo}</h2><p>${o.texto}</p>
+    <div class="zonas"><div class="zona"><h3>Sua bolsa</h3><div class="itens" id="z-bolsa"></div></div><div class="zona"><h3>Pagamento</h3><div class="itens" id="z-pag"></div></div></div>
+    <div class="trocas" id="trocas"></div><p class="aviso" id="av"></p>
+    <div class="botoes"><button id="b-pagar">Pagar</button><button class="sec" id="b-canc">${o.cancelar||'Agora não'}</button></div>`);
+  renderPg(); $('b-pagar').onclick=confirmarPagamento;
+  $('b-canc').onclick=()=>{ fechar(); o.aoCancelar&&o.aoCancelar(); };
+}
+function moedas(z,id){
+  let h=''; for(const t of ORDEM){ const n=pg[z][t]; if(!n) continue; const cont=n>9?1:n;
+    for(let k=0;k<cont;k++) h+=`<button class="simb" data-t="${t}" data-z="${z}" aria-label="${NOME_SIMB[t]}, vale ${VALOR[t]}">${HIERO[t]}${n>9?`<span class="n">×${n}</span>`:''}</button>`; }
+  $(id).innerHTML=h||'<small>vazio</small>';
+}
+function renderPg(){
+  moedas('bolsa','z-bolsa'); moedas('pag','z-pag');
+  let tr='';
+  for(const [de,para] of [['lotus','rolo'],['rolo','arco'],['arco','traco']]) if(pg.bolsa[de]>0) tr+=`<button class="sec" data-de="${de}" data-para="${para}" data-n="10">1 ${NOME_SIMB[de]} → 10 ${para==='traco'?'traços':para==='arco'?'arcos':'rolos'}</button>`;
+  for(const [de,para] of [['traco','arco'],['arco','rolo'],['rolo','lotus']]) if(pg.bolsa[de]>=10) tr+=`<button class="sec" data-de="${de}" data-para="${para}" data-n="-10">10 ${de==='traco'?'traços':de==='arco'?'arcos':'rolos'} → 1 ${NOME_SIMB[para]}</button>`;
+  $('trocas').innerHTML=tr;
+  document.querySelectorAll('#trocas button').forEach(b=>b.onclick=()=>{ Som.tocar('moedas',2); const de=b.dataset.de, para=b.dataset.para;
+    if(b.dataset.n==='10'){ pg.bolsa[de]--; pg.bolsa[para]+=10; } else { pg.bolsa[de]-=10; pg.bolsa[para]++; } $('av').textContent=''; renderPg(); });
+  document.querySelectorAll('.simb').forEach(b=>b.onclick=()=>{ Som.tocar('clique'); const t=b.dataset.t, de=b.dataset.z, para=de==='bolsa'?'pag':'bolsa'; pg[de][t]--; pg[para][t]++; $('av').textContent=''; renderPg(); });
+}
+function confirmarPagamento(){
+  const pago=valorDe(pg.pag), v=pg.valor, av=$('av');
+  if(pago<v){ tremer(); av.className='aviso ruim'; av.textContent= valorDe(pg.bolsa)+pago<v ? `Seu cobre não dá: faltam ${v-pago-valorDe(pg.bolsa)}. ${pg.semDinheiro||''}` : `Contaram: faltam ${v-pago}. Precisa trocar alguma moeda?`; return; }
+  E.bolsa={...pg.bolsa}; fechar(); Som.tocar('moedas',5);
+  if(pago>v) falar(pg.quem,`Obrigado! Você pagou ${pago-v} a mais… e eu fico com o troco.`,6);
+  renderHud(); pg.aoPagar(); renderPlacas(); renderObjetivo();
+}
+
+/* ===== Sementes ===== */
+function comprarSementes(){
+  const p=precoSemente();
+  pagarComBolsa({titulo:'Vendedor de sementes', quem:'Vendedor de sementes', valor:p,
+    texto:`“Um saco de sementes planta <b>${POR_SACO} canteiros</b>. O preço é este:” <span class="placa glifos" style="vertical-align:middle;margin-left:6px">${glifosHTML(p)}</span><br><small>Mova as moedas da bolsa até formar o preço exato. Se faltar moeda pequena, faça uma troca.</small>`,
+    semDinheiro:'Venda trigo para juntar mais.',
+    aoPagar:()=>{ E.sementes+=POR_SACO; cena.emitir(sementeiro.x,sementeiro.y,'brilho',8); falar('Vendedor de sementes',`Aqui estão as sementes para ${POR_SACO} canteiros. Boa colheita!`,5); }});
+}
+/* ===== Ajudantes ===== */
+function contratar(){
+  if(E.ajudantes>=PRECO_AJUDANTE.length) return; const p=PRECO_AJUDANTE[E.ajudantes];
+  pagarComBolsa({titulo:'Contratar um ajudante', quem:'Ajudante', valor:p,
+    texto:`Um ajudante <b>planta e colhe sozinho</b> (se houver sementes) e leva o trigo ao celeiro. O pagamento é este: <span class="placa glifos" style="vertical-align:middle;margin-left:6px">${glifosHTML(p)}</span>`,
+    semDinheiro:'Venda mais trigo antes.',
+    aoPagar:()=>{ E.ajudantes++; ajudantes.push({x:cabana.x+0.6,y:cabana.y+2.4,estado:'parado'}); Som.tocar('bom'); cena.emitir(cabana.x+0.6,cabana.y+2.4,'brilho',12); falar('Ajudante','Pode deixar comigo! Só não esqueça de comprar sementes.',6); }});
+}
 /* ===== Mercado (ler) ===== */
 const somaDigitos = n => String(n).split('').reduce((s,d)=>s+(+d),0);
 const sorteio = (a,b)=>a+Math.floor(Math.random()*(b-a+1));
@@ -242,19 +370,19 @@ function novasOfertas(){
   const faixa=[[12,60],[25,95],[90,260]][Math.min(E.estagio,2)];
   let L,H,tent=0;
   do{ L=sorteio(faixa[0],faixa[1]); H=L+sorteio(3,25); tent++; } while(somaDigitos(L)<=somaDigitos(H) && tent<200);
-  E.ofertas = Math.random()<0.5 ? [L,H] : [H,L]; E.ofertaT=0; renderOfertas();
+  E.ofertas = Math.random()<0.5 ? [L,H] : [H,L]; E.ofertaT=0; renderPlacas();
 }
 function vender(i){
-  if(E.cargas<1){ falar('Mercador','Não tem trigo para vender ainda. Espere os aldeões trazerem uma carga.',4); return; }
+  if(E.cargas<1){ falar('Mercador','Você não tem trigo colhido para vender. Plante e colha primeiro!',4); return; }
   const preco=E.ofertas[i], outro=E.ofertas[1-i];
-  E.cargas--; const q=partes(preco); for(const t of ORDEM) E.bolsa[t]+=q[t];
+  E.cargas--; E.vendas++; const q=partes(preco); for(const t of ORDEM) E.bolsa[t]+=q[t];
   cena.flutuar(mercadores[i].x,mercadores[i].y,`+${preco} cobres`,'#ffd09a');
   if(outro>preco){ Som.tocar('moedas',2); cena.emitir(mercadores[i].x,mercadores[i].y,'moeda',5);
     falar('Mercador da outra barraca',`Que pena! Eu pagaria <span class="glifos">${glifosHTML(outro)}</span> por essa carga…`,6); }
   else { Som.tocar('moedas',6); Som.tocar('bom'); cena.emitir(mercadores[i].x,mercadores[i].y,'moeda',18); falar('Mercador','Boa venda! Você escolheu o preço maior.',4); }
+  if(E.vendas===1) setTimeout(()=>falar('Escriba','Agora você pode encomendar tijolos ao <b>oleiro</b> e contratar <b>ajudantes</b> na casa. Planeje bem as moedas!',9),4200);
   novasOfertas(); renderHud(); renderObjetivo();
 }
-
 /* ===== Oleiro (escrever) ===== */
 function encomendar(){
   if(E.carroca){ falar('Oleiro','Os tijolos já estão a caminho!',4); return; }
@@ -275,42 +403,13 @@ function encomendar(){
     renderObjetivo();
   };
 }
-
-/* ===== Pagamento (trocar) ===== */
-let pg=null;
 function chegaramTijolos(){
   const v=E.carroca.qtd; Som.tocar('chegou');
-  pg={v, bolsa:{...E.bolsa}, pag:{lotus:0,rolo:0,arco:0,traco:0}};
-  abrir(`<h2>Chegaram ${v} tijolos!</h2>
-    <p>O oleiro cobra <b style="font-size:22px">${v}</b> cobres. Mova as moedas da bolsa para o pagamento. Se faltar uma moeda pequena, faça uma troca.</p>
-    <div class="zonas"><div class="zona"><h3>Sua bolsa</h3><div class="itens" id="z-bolsa"></div></div><div class="zona"><h3>Pagamento</h3><div class="itens" id="z-pag"></div></div></div>
-    <div class="trocas" id="trocas"></div><p class="aviso" id="av"></p>
-    <div class="botoes"><button id="b-pagar">Pagar</button><button class="sec" id="b-devolver">Devolver os tijolos</button></div>`);
-  renderPg(); $('b-pagar').onclick=pagar;
-  $('b-devolver').onclick=()=>{ fechar(); E.carroca=null; E.encomendou=false; falar('Oleiro','Tudo bem, levo de volta. Junte mais cobre no mercado e encomende de novo.',6); renderObjetivo(); };
-}
-function moedas(z,id){
-  let h=''; for(const t of ORDEM){ const n=pg[z][t]; if(!n) continue;
-    const cont = n>9 ? 1 : n;
-    for(let k=0;k<cont;k++) h+=`<button class="simb" data-t="${t}" data-z="${z}" aria-label="${NOME_SIMB[t]}, vale ${VALOR[t]}">${HIERO[t]}${n>9?`<span class="n">×${n}</span>`:''}</button>`; }
-  $(id).innerHTML=h||'<small>vazio</small>';
-}
-function renderPg(){
-  moedas('bolsa','z-bolsa'); moedas('pag','z-pag');
-  let tr='';
-  for(const [de,para] of [['lotus','rolo'],['rolo','arco'],['arco','traco']]) if(pg.bolsa[de]>0) tr+=`<button class="sec" data-de="${de}" data-para="${para}" data-n="10">1 ${NOME_SIMB[de]} → 10 ${para==='traco'?'traços':para==='arco'?'arcos':'rolos'}</button>`;
-  for(const [de,para] of [['traco','arco'],['arco','rolo'],['rolo','lotus']]) if(pg.bolsa[de]>=10) tr+=`<button class="sec" data-de="${de}" data-para="${para}" data-n="-10">10 ${de==='traco'?'traços':de==='arco'?'arcos':'rolos'} → 1 ${NOME_SIMB[para]}</button>`;
-  $('trocas').innerHTML=tr;
-  document.querySelectorAll('#trocas button').forEach(b=>b.onclick=()=>{ const de=b.dataset.de, para=b.dataset.para;
-    if(b.dataset.n==='10'){ pg.bolsa[de]--; pg.bolsa[para]+=10; } else { pg.bolsa[de]-=10; pg.bolsa[para]++; } $('av').textContent=''; renderPg(); });
-  document.querySelectorAll('.simb').forEach(b=>b.onclick=()=>{ const t=b.dataset.t, de=b.dataset.z, para=de==='bolsa'?'pag':'bolsa'; pg[de][t]--; pg[para][t]++; $('av').textContent=''; renderPg(); });
-}
-function pagar(){
-  const pago=valorDe(pg.pag), v=pg.v, av=$('av');
-  if(pago<v){ tremer(); av.className='aviso ruim'; av.textContent= valorDe(pg.bolsa)+pago<v ? `Seu cobre não dá: faltam ${v-pago-valorDe(pg.bolsa)}. Você pode devolver os tijolos e vender mais trigo.` : `O oleiro contou: faltam ${v-pago}. Precisa trocar alguma moeda?`; return; }
-  E.bolsa={...pg.bolsa}; fechar(); E.carroca=null; E.encomendou=false; Som.tocar('moedas',5);
-  if(pago>v) falar('Oleiro',`Obrigado! Você pagou ${pago-v} a mais… e eu fico com o troco.`,6);
-  colocarTijolos(v);
+  pagarComBolsa({titulo:`Chegaram ${v} tijolos!`, quem:'Oleiro', valor:v, cancelar:'Devolver os tijolos',
+    texto:`O oleiro cobra <b style="font-size:22px">${v}</b> cobres. Mova as moedas da bolsa para o pagamento. Se faltar uma moeda pequena, faça uma troca.`,
+    semDinheiro:'Você pode devolver os tijolos e vender mais trigo.',
+    aoPagar:()=>{ E.carroca=null; E.encomendou=false; colocarTijolos(v); },
+    aoCancelar:()=>{ E.carroca=null; E.encomendou=false; falar('Oleiro','Tudo bem, levo de volta. Junte mais cobre e encomende de novo.',6); renderObjetivo(); }});
 }
 function colocarTijolos(v){
   E.colocados+=v; cena.flutuar(celeiro.x+1,celeiro.y+1,`+${v} tijolos`,'#ffb08a');
@@ -318,42 +417,44 @@ function colocarTijolos(v){
   while(E.estagio<OBRA.length && E.colocados>=OBRA[E.estagio].precisa){
     E.colocados-=OBRA[E.estagio].precisa; const nome=OBRA[E.estagio].nome; E.estagio++;
     setTimeout(()=>{ Som.tocar('etapa'); cena.emitir(celeiro.x+1,celeiro.y+1,'brilho',22); },700);
-    if(E.estagio<OBRA.length) falar('Mestre de obras',`${nome[0].toUpperCase()+nome.slice(1)} do celeiro ficou pronta! Agora vamos para ${OBRA[E.estagio].nome}.`.replace('Os silos do celeiro ficou pronta','Os silos do celeiro ficaram prontos'),7);
+    if(E.estagio<OBRA.length) falar('Mestre de obras', (nome==='os silos'?'Os silos do celeiro ficaram prontos!':'A base do celeiro ficou pronta!')+` Agora vamos para ${OBRA[E.estagio].nome}.`,7);
   }
   if(E.estagio>=OBRA.length){ E.acabou=true; renderHud(); setTimeout(final,2500); return; }
-  const faltam=OBRA[E.estagio].precisa-E.colocados;
-  if(v<faltam+v && E.colocados>0 && E.colocados<OBRA[E.estagio].precisa) falar('Mestre de obras',`Ainda faltam ${faltam} tijolos para ${OBRA[E.estagio].nome}.`,6);
-  renderHud(); renderObjetivo();
+  if(E.colocados>0) falar('Mestre de obras',`Ainda faltam ${OBRA[E.estagio].precisa-E.colocados} tijolos para ${OBRA[E.estagio].nome}.`,6);
+  renderHud(); renderPlacas(); renderObjetivo();
 }
-
+/* ===== Ninguém fica travado ===== */
+function verificarTravado(){
+  if(modalAberto()||E.carroca) return;
+  const temPlantacao=canteiros.some(c=>c.estado!=='vazio'), carregando=ajudantes.some(a=>a.carga>0);
+  if(E.sementes===0 && !temPlantacao && E.cargas===0 && !carregando && totalBolsa()<precoSemente()){
+    const q={arco:2}; for(const t in q) E.bolsa[t]+=q[t]; E.emprestimos++;
+    falar('Escriba',`Suas moedas acabaram. Vou te emprestar <span class="glifos">${glifosHTML(20)}</span> para comprar sementes. Guarde sempre um pouco para elas!`,9);
+    renderHud(); renderObjetivo();
+  }
+}
 /* ===== Dicas ===== */
 let nivelDica=0;
 $('b-dica').onclick=()=>{
   if(!E.licaoVista){ falar('Escriba','Clique em mim, o escriba com o papiro, para começar a lição.'); return; }
-  const dicas = E.carroca ? ['Quando os tijolos chegarem, pague o valor exato. Se faltar moeda pequena, troque: 1 arco vira 10 traços.']
-    : totalBolsa() < OBRA[E.estagio].precisa-E.colocados ? ['Mais desenhos não quer dizer mais valor! Some: cada arco vale 10, cada traço vale 1.','Compare primeiro os desenhos maiores: quem tem mais rolos paga mais; se empatar, compare os arcos.']
-    : ['Para escrever o número, separe: centenas viram rolos, dezenas viram arcos, unidades viram traços.','Exemplo: 124 = 1 rolo, 2 arcos e 4 traços.'];
+  let dicas;
+  if(E.carroca) dicas=['Quando os tijolos chegarem, pague o valor exato. Se faltar moeda pequena, troque: 1 arco vira 10 traços.'];
+  else if(E.sementes===0 && !canteiros.some(c=>c.estado!=='vazio') && E.cargas===0) dicas=['Para pagar as sementes, mova moedas até formar o preço exato. Se só tiver arcos, troque um arco por 10 traços.'];
+  else if(E.cargas>0) dicas=['Mais desenhos não quer dizer mais valor! Some: cada arco vale 10, cada traço vale 1.','Compare primeiro os desenhos maiores: quem tem mais rolos paga mais; se empatar, compare os arcos.'];
+  else dicas=['Para escrever o número ao oleiro, separe: centenas viram rolos, dezenas viram arcos, unidades viram traços.','Arraste o mouse sobre vários canteiros para plantar ou colher de uma vez.','Ajudantes colhem sozinhos, mas precisam de sementes para replantar.'];
   falar('Escriba','💡 '+dicas[nivelDica%dicas.length],12); nivelDica++;
 };
-
 /* ===== Final ===== */
 function final(){
   salvarProgresso('numeros'); Som.tocar('vitoria'); cena.emitir(celeiro.x+1,celeiro.y+1,'confete',70);
   abrir(`<h2>O celeiro está pronto!</h2>
-    <p>Você leu os preços do mercado, escreveu as encomendas e pagou o oleiro, tudo em hieróglifos. <b>Conhecimento aprendido: os números do Egito.</b></p>
+    <p>Você comprou sementes, plantou, colheu, leu os preços do mercado, escreveu as encomendas e pagou o oleiro, tudo em hieróglifos. <b>Conhecimento aprendido: os números do Egito.</b></p>
     <div class="simbolos">${ORDEM.slice().reverse().map(t=>`<div class="simbolo"><span class="glifos">${HIERO[t]}</span><b>${VALOR[t]}</b><small>${NOME_SIMB[t]}</small></div>`).join('')}</div>
     <p>Na árvore do conhecimento, o próximo passo já está liberado: <b>os terrenos da cheia</b>.</p>
     <div class="botoes"><button id="b-volta">Voltar à vila</button></div>`);
   $('b-volta').onclick=()=>location.href='egito.html?novo=numeros';
 }
-
 /* ===== Início ===== */
-$('tela').addEventListener('pointerdown',e=>{
-  if(modalAberto()) return; const [mx,my]=cena.ptJogo(e);
-  const perto=(a,r)=>{ const [sx,sy]=cena.p(a.x,a.y); return Math.hypot(mx-sx,my-(sy-16))<(r||24); };
-  if(perto(escriba)) clicarEscriba();
-  else if(E.licaoVista){ if(perto(oleiro)) encomendar(); else if(perto(mercadores[0],30)) vender(0); else if(perto(mercadores[1],30)) vender(1); }
-});
 renderHud(); renderObjetivo();
 falar('Escriba','Olá! Antes de construir o celeiro, preciso te ensinar como nós, egípcios, escrevemos os números. Clique em mim!',10);
 requestAnimationFrame(quadro);

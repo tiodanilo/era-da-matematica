@@ -108,7 +108,7 @@ class Cena {
 
   /* começa um quadro: céu e transformação */
   comecar(dt){
-    this.T += dt; this._dt = dt; const ctx=this.ctx, w=this.cv.width, h=this.cv.height;
+    dt=Math.max(0,dt||0); this.T += dt; this._dt = dt; const ctx=this.ctx, w=this.cv.width, h=this.cv.height;
     ctx.setTransform(1,0,0,1,0,0);
     const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'#f5d59c'); g.addColorStop(0.5,'#e2aa6c'); g.addColorStop(1,'#9a6438'); ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
     ctx.fillStyle='#d99d60'; ctx.beginPath(); ctx.moveTo(0,h*0.42); for(let x=0;x<=w;x+=w/8) ctx.quadraticCurveTo(x+w/16,h*0.36+(x%3)*6,x+w/8,h*0.42); ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.fill();
@@ -147,7 +147,7 @@ class Cena {
       p.vy+=p.g*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.rot+=dt*8; const k=1-p.vida/p.max; ctx.globalAlpha=Math.max(0,Math.min(1,k*1.4));
       ctx.fillStyle=p.cor;
       if(p.tipo==='moeda'){ ctx.beginPath(); ctx.ellipse(p.x,p.y,p.tam,p.tam*Math.abs(Math.cos(p.rot)),0,0,7); ctx.fill(); }
-      else if(p.tipo==='poeira'){ ctx.beginPath(); ctx.arc(p.x,p.y,p.tam*(1.6-k),0,7); ctx.fill(); }
+      else if(p.tipo==='poeira'){ ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(0.5,p.tam*(1.6-k)),0,7); ctx.fill(); }
       else if(p.tipo==='brilho'){ const s=p.tam*(0.6+k); ctx.beginPath(); ctx.moveTo(p.x,p.y-s*2); ctx.lineTo(p.x+s*0.5,p.y); ctx.lineTo(p.x,p.y+s*2); ctx.lineTo(p.x-s*0.5,p.y); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(p.x-s*2,p.y); ctx.lineTo(p.x,p.y+s*0.5); ctx.lineTo(p.x+s*2,p.y); ctx.lineTo(p.x,p.y-s*0.5); ctx.closePath(); ctx.fill(); }
       else { ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.fillRect(-p.tam,-p.tam/2,p.tam*2,p.tam); ctx.restore(); }
     }
@@ -179,7 +179,7 @@ class Cena {
     if(tipo(0,0)==='agua') this.desenharBarco(this._dt||0);
   }
   /* campo de trigo (estado: 'crescendo' com k de 0 a 1, ou 'maduro') com cerca */
-  campo(c, k, maduro){
+  campo(c, k, maduro, semCerca){
     const ctx=this.ctx, T=this.T;
     for(let i=0;i<c.w;i++) for(let j=0;j<c.d;j++){ const f=0.95+this.rr(c.x+i,c.y+j)*0.08; this.losango(c.x+i,c.y+j, maduro?this.cor(206,164,62,f):this.cor(120+20*k,104+50*k,62,f)); }
     ctx.lineCap='round'; const cab=[];
@@ -189,7 +189,7 @@ class Cena {
       for(const o of [-2.2,0,2.2]){ ctx.moveTo(sx+o,sy); ctx.lineTo(sx+o+bal,sy-h); if(maduro) cab.push([sx+o+bal,sy-h]); }
     }
     ctx.stroke(); ctx.fillStyle='#ecc75c'; for(const [x,y] of cab){ ctx.beginPath(); ctx.ellipse(x,y-1.5,1.4,3,0,0,7); ctx.fill(); }
-    this.cerca(c);
+    if(!semCerca) this.cerca(c);
   }
   cerca(c){
     const ctx=this.ctx; const A=this.p(c.x,c.y),B=this.p(c.x+c.w,c.y),C=this.p(c.x+c.w,c.y+c.d),D=this.p(c.x,c.y+c.d);

@@ -95,7 +95,7 @@ function passear(m,dt){
 }
 let ultimo=performance.now();
 function quadro(agora){
-  const dt=Math.min(0.1,(agora-ultimo)/1000); ultimo=agora;
+  const dt=Math.max(0,Math.min(0.1,(agora-ultimo)/1000)); ultimo=Math.max(ultimo,agora);
   for(const [b,cx,cy] of [[celeiro,celeiro.x+1,celeiro.y+1],[casaIpi,casaIpi.x+1,casaIpi.y+1]]) if(b.prog>0&&b.prog<1){
     b.prog=Math.min(1,b.prog+dt/2.5); if(Math.random()<dt*6) cena.emitir(cx,cy,'poeira',2); if(b.prog>=1) cena.emitir(cx,cy,'brilho',24); }
   cena.comecar(dt);
