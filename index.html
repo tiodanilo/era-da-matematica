@@ -23,7 +23,10 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .barra{height:6px;background:#d7bf86;border-radius:3px;overflow:hidden}
 .barra i{display:block;height:100%;width:0;background:var(--ouro)}
 #meta{display:none}
-#btn-dica{margin-left:auto;pointer-events:auto;font:inherit;font-weight:bold;color:var(--tinta);cursor:pointer}
+#btn-dica,#btn-vel,#btn-escriba{pointer-events:auto;font:inherit;font-weight:bold;color:var(--tinta);cursor:pointer}
+#btn-vel{margin-left:auto;order:1}
+#btn-dica{order:2}
+#btn-escriba{display:none;order:3;background:var(--ouro);color:#fff;animation:brilho 1s ease-in-out infinite alternate}
 #btn-dica.chamando{animation:brilho 1s ease-in-out infinite alternate}
 @keyframes brilho{from{box-shadow:0 0 0 0 #f6c74a}to{box-shadow:0 0 0 7px #f6c74a}}
 .dica-item{background:var(--papiro2);border-radius:8px;padding:8px 12px;margin:8px 0}
@@ -84,6 +87,8 @@ button:active{transform:scale(.97)}
     <div class="painel num"><span>Madeira</span><span class="v" id="v-madeira">0</span></div>
     <div class="painel" id="dia"><div class="linha"><span class="sol"></span><span id="t-dia">Dia 1 de 5</span></div><div class="barra"><i id="b-dia"></i></div></div>
     <div class="painel num" id="meta"><span>Meta do escriba do faraó</span><span class="v" id="v-meta"></span><small>cestos</small></div>
+    <button class="painel" id="btn-escriba">📜 Chamar o escriba agora</button>
+    <button class="painel" id="btn-vel" title="Velocidade do tempo">⏩ 1×</button>
     <button class="painel" id="btn-dica">💡 Dica do escriba</button>
   </div>
   <div id="esq">
@@ -113,11 +118,12 @@ const META = 100;            // cestos de trigo que o escriba quer ver no celeir
 const CERCA_NEFERU = 40;     // pedaços de cerca da família de Neferu
 const AREA_IPI = 36;         // quadradinhos de terra que a família de Ipi quer
 const MADEIRA_INICIAL = 10;  // madeira no começo (cada pedaço de cerca gasta 1)
-const CRESCER_SEG = 14;      // segundos para o trigo amadurecer
-const CARGA = 5;             // quanto um aldeão carrega por viagem
-const TEMPO_COLHER = 0.6;    // segundos para colher 1 quadradinho de trigo
-const TEMPO_CORTAR = 0.9;    // segundos para cortar 1 de madeira
-const VELOCIDADE = 1.8;      // casas do mapa por segundo
+const CRESCER_SEG = 8;       // segundos para o trigo amadurecer
+const CARGA = 10;            // quanto um aldeão carrega por viagem
+const TEMPO_COLHER = 0.3;    // segundos para colher 1 quadradinho de trigo
+const TEMPO_CORTAR = 0.45;   // segundos para cortar 1 de madeira
+const VELOCIDADE = 3.2;      // casas do mapa por segundo
+const ESPERA_IPI = 3;        // segundos até a família de Ipi chegar depois do 1º terreno
 const RAPIDO = new URLSearchParams(location.search).has('rapido') ? 8 : 1; // ?rapido acelera (para testes)
 
 const $ = id => document.getElementById(id);
@@ -327,7 +333,7 @@ const DICAS = {
     `A área precisa ser exatamente ${AREA_IPI}. Que pares de números, multiplicados, dão ${AREA_IPI}? Por exemplo, 4 × 9.`,
     'Agora compare a cerca de cada um: um terreno 9 × 4 gasta 9 + 4 + 9 + 4 = 26. Algum outro gasta menos?',
     'Quanto mais parecidos os lados, menos cerca. Tente 6 × 6. Se faltar madeira, mande aldeões às palmeiras.'],
-  colheita:['Clique num aldeão e depois num campo dourado. Coloque todos para colher: cada viagem leva 5 cestos ao celeiro.']
+  colheita:[`Clique num aldeão e depois num campo dourado. Coloque todos para colher: cada viagem leva ${CARGA} cestos ao celeiro. Achou lento? Use o botão ⏩ no alto.`]
 };
 const nivelDica={}, dicaOferecida={};
 function abrirDica(){
@@ -341,6 +347,14 @@ function abrirDica(){
   abrirModal(h);
   $('b-ok').onclick=fecharModal;
   if($('b-mais')) $('b-mais').onclick=()=>{ nivelDica[E.fase]=n+1; abrirDica(); };
+}
+E.vel=1;
+$('btn-vel').onclick=()=>{ E.vel = E.vel===3 ? 1 : E.vel+1; $('btn-vel').textContent=`⏩ ${E.vel}×`; };
+$('btn-escriba').onclick=()=>{ if(!E.acabou&&!E.pausado) terminar(); };
+function podeChamarEscriba(){
+  if(E.estoque.trigo>=META) return true;
+  const tudoColhido = E.campos.length===2 && E.campos.every(c=>c.estado==='maduro'&&c.tiles.every(t=>!t.ok));
+  return tudoColhido && E.aldeoes.every(a=>!(a.carga>0&&a.tipoCarga==='trigo'));
 }
 $('btn-dica').onclick=()=>{ if(!E.acabou&&$('inicio').style.display==='none') abrirDica(); };
 function oferecerDica(){
@@ -547,6 +561,9 @@ function atualizar(dt){
   if(E.acabou) return;
   if(E.tempo>=DIAS*DIA_SEG){ terminar(); return; }
   E.tempo+=dt; E.tFase+=dt; oferecerDica();
+  const pode=podeChamarEscriba(), btnE=$('btn-escriba');
+  if(pode && btnE.style.display!=='inline-block'){ btnE.style.display='inline-block';
+    falar('Escriba', E.estoque.trigo>=META ? 'A meta foi batida! Se quiser, chame o escriba do faraó agora, no botão do alto da tela.' : 'Todo o trigo foi colhido. Você pode chamar o escriba do faraó agora.',8); }
   const dia=Math.min(DIAS,Math.floor(E.tempo/DIA_SEG)+1);
   $('t-dia').textContent=`Dia ${dia} de ${DIAS}`; $('b-dia').style.width=((E.tempo%DIA_SEG)/DIA_SEG*100)+'%';
   if(dia>E.diaAvisado){ E.diaAvisado=dia; if(dia===DIAS) falar('Ancião','Último dia! O escriba do faraó chega ao pôr do sol para conferir o celeiro.',9); }
@@ -555,7 +572,7 @@ function atualizar(dt){
       falar('Escriba',`O trigo da família de ${c.dono} amadureceu! Clique num aldeão e depois no campo para colher.`,8);
       if(!E.seta||E.seta.tipo==='madeira') E.seta=c; } }
   if(E.visitante&&E.visitante.estado==='vindo'){ E.visitante.andando=false; if(mover(E.visitante,13.5,15.8,dt)) E.visitante.estado='parado'; }
-  if(E.fase==='crescer1'&&E.tFase>18&&!E.visitante){
+  if(E.fase==='crescer1'&&E.tFase>ESPERA_IPI&&!E.visitante){
     E.fase='visita2'; E.tFase=0; E.visitante={x:19.5,y:19.5,estado:'vindo'}; E.seta=E.visitante;
     falar('Escriba','Outra família chegou pedindo terra. Clique nela para ouvir o pedido.',8);
     objetivo('A <b>família de Ipi</b> chegou. Clique no viajante de azul.'); }
@@ -588,7 +605,7 @@ objetivo(`Desenhe o terreno de <b>Neferu</b>: arraste o mouse sobre a terra escu
 let ultimo=performance.now();
 function quadro(agora){
   const dt=Math.min(0.2,(agora-ultimo)/1000); ultimo=agora; T+=dt;
-  if(!E.pausado) atualizar(dt*RAPIDO);
+  if(!E.pausado) atualizar(dt*RAPIDO*E.vel);
   renderNumeros(); renderSelecao(); desenhar();
   requestAnimationFrame(quadro);
 }
