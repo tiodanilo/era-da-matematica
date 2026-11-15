@@ -1,0 +1,52 @@
+:root{--papiro:#f3e2b8;--papiro2:#e9d39d;--tinta:#3b2a14;--borda:#8a6a3a;--ouro:#c98a1b;--fundo:#2a2118;--verde:#3f7a26;--vermelho:#a8321f;--azul:#2f6fa0}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--fundo);font-family:"Trebuchet MS",system-ui,sans-serif;color:var(--tinta);overflow:hidden;user-select:none;-webkit-user-select:none}
+.tela{position:relative;width:100vw;height:100vh}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.painel{background:var(--papiro);border:2px solid var(--borda);border-radius:10px;padding:6px 10px;box-shadow:0 2px 0 rgba(0,0,0,.35)}
+button{font:inherit;font-size:16px;font-weight:bold;cursor:pointer;background:var(--ouro);color:#fff;border:2px solid #8a5a10;border-radius:8px;padding:8px 14px}
+button.sec{background:var(--papiro2);color:var(--tinta);border-color:var(--borda)}
+button:active{transform:scale(.97)}
+.botoes{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.hud{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+.hud>*{pointer-events:auto}
+.num{display:flex;align-items:center;gap:8px;min-height:42px;font-weight:bold}
+.num .v{font-size:22px}
+.direita{margin-left:auto}
+.fala{position:absolute;left:12px;bottom:12px;max-width:min(560px,calc(100vw - 24px));display:none;font-size:17px;line-height:1.4;pointer-events:none}
+.fala .quem{font-weight:bold;color:var(--vermelho);font-size:14px;display:block}
+.objetivo{position:absolute;left:8px;top:66px;max-width:min(380px,calc(100vw - 16px));font-size:15px;pointer-events:none}
+.objetivo b{color:var(--vermelho)}
+.fundo-modal{position:absolute;inset:0;background:rgba(20,12,4,.55);display:none;align-items:flex-start;justify-content:center;padding:60px 16px 16px;z-index:10}
+.modal{background:var(--papiro);border:3px solid var(--borda);border-radius:14px;padding:18px 22px;max-width:600px;width:100%;max-height:calc(100vh - 80px);overflow:auto}
+.modal h2{margin:0 0 8px;font-size:22px}
+.modal p{margin:8px 0;line-height:1.45}
+.pop{animation:pop .5s ease-out}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.35);color:var(--ouro)}100%{transform:scale(1)}}
+.treme{animation:treme .4s}
+@keyframes treme{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+@keyframes brilho{from{box-shadow:0 0 0 0 #f6c74a}to{box-shadow:0 0 0 7px #f6c74a}}
+.chamando{animation:brilho 1s ease-in-out infinite alternate}
+/* hieróglifos */
+.glifos{display:inline-flex;align-items:flex-end;gap:3px;flex-wrap:wrap;color:var(--tinta);vertical-align:middle}
+.glifos .g{display:inline-block;line-height:0}
+.glifos svg{display:block;height:30px}
+.glifos.grande svg{height:44px}
+.glifos .vazio{opacity:.5;font-size:20px}
+.placa{display:inline-flex;background:#d9b878;border:2px solid var(--borda);border-radius:8px;padding:8px 12px;min-height:54px;align-items:center}
+.aviso{font-weight:bold;min-height:1.3em;margin-top:8px}
+.aviso.ruim{color:var(--vermelho)}
+.aviso.bom{color:var(--verde)}
+/* papiro de abertura */
+.inicio{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:radial-gradient(ellipse at center,#5a3d22,#1e140a)}
+.rolo{width:min(640px,100%);display:flex;flex-direction:column;align-items:stretch;animation:desenrola .9s ease-out}
+@keyframes desenrola{from{transform:scaleY(.08);opacity:.4}to{transform:scaleY(1);opacity:1}}
+.vara{height:22px;border-radius:11px;background:linear-gradient(#a8743c,#6d441d 60%,#4a2c12);margin:0 -14px;box-shadow:0 3px 6px rgba(0,0,0,.4)}
+.folha{background:#ead6a4;background-image:repeating-linear-gradient(90deg,rgba(140,100,50,.07) 0 2px,transparent 2px 7px),repeating-linear-gradient(0deg,rgba(140,100,50,.06) 0 1px,transparent 1px 9px);padding:22px 34px 28px;text-align:center;box-shadow:inset 0 0 40px rgba(120,80,30,.35)}
+.friso{height:12px;margin:0 -34px 18px;background:repeating-linear-gradient(90deg,#2f6fa0 0 14px,#c98a1b 14px 20px,#a8321f 20px 34px,#c98a1b 34px 40px)}
+.friso.baixo{margin:18px -34px 0}
+.folha h1{margin:0;font-size:clamp(26px,5vw,40px);color:#4a2c12}
+.folha .cap{margin:6px 0 2px;font-size:14px;text-transform:uppercase;letter-spacing:3px;color:var(--vermelho);font-weight:bold}
+.folha h2{margin:0 0 12px;font-size:22px;color:#5a3d1e}
+.folha p{font-size:16px;line-height:1.5;margin:0 auto 18px;max-width:480px}
+.folha button{font-size:20px;padding:10px 28px}
