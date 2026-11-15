@@ -52,12 +52,11 @@ const egitoCompleto = false; // as fases finais do Egito ainda serão criadas
 // Civilizações do mapa: [longitude, latitude]
 const LUGARES = [
   // rot: onde fica o nome em relação ao pino [dx, dy, alinhamento]
+  // a rota, na ordem da viagem
   {id:'egito', nome:'Egito', pos:[30.5,26.5], paises:['818'], aberto:true, pagina:'egito.html', rot:[0,36,'middle']},
-  {id:'mesopotamia', nome:'Mesopotâmia', pos:[44.4,33], paises:['368'], aberto:egitoCompleto, rot:[20,5,'start']},
-  {id:'grecia', nome:'Grécia', pos:[22,39.5], paises:['300'], aberto:false, rot:[-20,5,'end']},
-  {id:'india', nome:'Índia', pos:[78,23], paises:['356'], aberto:false, rot:[0,34,'middle']},
-  {id:'china', nome:'China', pos:[108.9,34.3], paises:['156'], aberto:false, rot:[0,34,'middle']},
-  {id:'maias', nome:'Maias', pos:[-89.6,17.2], paises:['484','320'], aberto:false, rot:[0,34,'middle']}
+  {id:'babilonia', nome:'Babilônia', pos:[44.4,32.5], paises:['368'], aberto:egitoCompleto, rot:[20,5,'start']},
+  {id:'roma', nome:'Roma', pos:[12.5,41.9], paises:['380'], aberto:false, rot:[-20,5,'end']},
+  {id:'india', nome:'Hindu-arábicos', pos:[78,23], paises:['356'], aberto:false, rot:[0,36,'middle']}
 ];
 const paisesAbertos = new Set(LUGARES.filter(l=>l.aberto).flatMap(l=>l.paises));
 
@@ -82,8 +81,8 @@ function desenhar(mundo){
   const W=box.clientWidth, H=box.clientHeight;
   const svg=d3.select(box).append('svg').attr('viewBox',`0 0 ${W} ${H}`).attr('role','img').attr('aria-label','Mapa do mundo com as civilizações da Matemática');
   // enquadra a região das civilizações (das Américas até a China)
-  const regiao={type:'Feature',geometry:{type:'MultiPoint',coordinates:[[-118,-8],[150,-8],[-118,58],[150,58],[16,62]]}};
-  const proj=d3.geoNaturalEarth1().rotate([-15,0]).fitExtent([[16,96],[W-16,H-16]],regiao);
+  const regiao={type:'Feature',geometry:{type:'MultiPoint',coordinates:[[-12,8],[96,8],[-12,56],[96,56]]}};
+  const proj=d3.geoNaturalEarth1().rotate([-42,0]).fitExtent([[16,96],[W-16,H-16]],regiao);
   const caminho=d3.geoPath(proj);
   svg.append('path').attr('class','oceano').attr('d',caminho({type:'Sphere'}));
   svg.append('path').attr('class','grade').attr('d',caminho(d3.geoGraticule10()));
@@ -98,6 +97,9 @@ function desenhar(mundo){
   const raio=Math.max(34, W*0.04);
   for(const l of LUGARES.filter(l=>l.aberto)){ const [x,y]=proj(l.pos); mask.append('circle').attr('cx',x).attr('cy',y).attr('r',raio).attr('fill','#000'); }
   svg.append('rect').attr('width',W).attr('height',H).attr('fill','rgba(45,30,15,.45)').attr('mask','url(#nevoa)').attr('pointer-events','none');
+  // a rota da viagem, tracejada
+  svg.append('path').attr('d',caminho({type:'LineString',coordinates:LUGARES.map(l=>l.pos)}))
+    .attr('fill','none').attr('stroke','#a8321f').attr('stroke-width',3).attr('stroke-dasharray','8 7').attr('stroke-linecap','round').attr('opacity',.85);
   // pinos
   for(const l of LUGARES){
     const [x,y]=proj(l.pos), g=svg.append('g').attr('class','pino').attr('transform',`translate(${x},${y})`).attr('tabindex',0).attr('role','button')
