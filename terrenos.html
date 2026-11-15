@@ -91,6 +91,7 @@ button:active{transform:scale(.97)}
     <button class="painel" id="btn-voltar" style="order:4;pointer-events:auto;font:inherit;font-weight:bold;color:var(--tinta);cursor:pointer" onclick="location.href='egito.html'">← Vila</button>
     <button class="painel" id="btn-vel" title="Velocidade do tempo">⏩ 1×</button>
     <button class="painel" id="btn-dica">💡 Dica do escriba</button>
+    <button class="painel" id="btn-som" style="order:2;pointer-events:auto;font:inherit;font-weight:bold;color:var(--tinta);cursor:pointer">🔊 Som</button>
   </div>
   <div id="esq">
     <div class="painel" id="objetivo"></div>
@@ -110,6 +111,7 @@ button:active{transform:scale(.97)}
     <div class="friso baixo"></div>
   </div><div class="vara"></div></div></div>
 </div>
+<script src="comum.js"></script>
 <script>
 'use strict';
 /* ===== AJUSTES: mude estes números para deixar o jogo mais fácil ou mais difícil ===== */
@@ -220,6 +222,7 @@ function renderCaderno(){
     lista.map(t=>`<tr class="${(t2?t.P:t.A)===melhor&&lista.length>1?'melhor':''}"><td>${t.w} × ${t.d}</td><td>${t.P}</td><td>${t.A}</td></tr>`).join('')+'</table>';
 }
 function cercar(r){
+  Som.tocar('plantar'); setTimeout(()=>Som.tocar('bom'),200);
   const c={...r, dono:E.fase==='terreno1'?'Neferu':'Ipi', estado:'crescendo', t:0, tiles:[]};
   for(let i=0;i<r.w;i++) for(let j=0;j<r.d;j++) c.tiles.push({x:r.x+i,y:r.y+j,ok:true});
   E.campos.push(c); E.desenho=null; renderProposta();
@@ -273,7 +276,7 @@ function atualizarAldeao(a,dt){
   } else if(a.estado==='voltando'){
     const [dx,dy]=centro(a.tipoCarga==='trigo'?E.celeiro:E.cabana);
     if(dist(a.x,a.y,dx,dy)<1.4){
-      if(a.carga>0){ E.estoque[a.tipoCarga]+=a.carga; flutuantes.push({x:dx,y:dy,t0:T,txt:`+${a.carga} ${a.tipoCarga}`,cor:a.tipoCarga==='trigo'?'#ffd968':'#f0c08a'}); a.carga=0; }
+      if(a.carga>0){ Som.tocar(a.tipoCarga==='trigo'?'carga':'tijolo'); E.estoque[a.tipoCarga]+=a.carga; flutuantes.push({x:dx,y:dy,t0:T,txt:`+${a.carga} ${a.tipoCarga}`,cor:a.tipoCarga==='trigo'?'#ffd968':'#f0c08a'}); a.carga=0; }
       if(a.depois){ a.alvo=a.depois; a.depois=null; a.estado='indo'; }
       else if(a.alvo && (a.alvo.tiles ? tileProximo(a.alvo,a.x,a.y) : a.alvo.qtd>0||palmeiraProxima(a.x,a.y))) a.estado='indo';
       else a.estado='parado';
@@ -579,6 +582,7 @@ function atualizar(dt){
     objetivo('A <b>família de Ipi</b> chegou. Clique no viajante de azul.'); }
 }
 function terminar(){
+  Som.tocar(E.estoque.trigo>=META?'vitoria':'ruim');
   E.acabou=true; E.seta=null; E.desenho=null; renderProposta();
   const ok=E.estoque.trigo>=META;
   const campos=E.campos.map(c=>`<li>Família de ${c.dono}: ${c.w} × ${c.d}, cerca ${perimetro(c)}, área ${area(c)}</li>`).join('')||'<li>Nenhum terreno foi cercado.</li>';
@@ -598,7 +602,8 @@ function terminar(){
 
 /* ===== Início ===== */
 E.pausado=true;
-$('b-comecar').onclick=()=>{ $('inicio').style.display='none'; E.pausado=false;
+botaoSom($('btn-som'));
+$('b-comecar').onclick=()=>{ $('inicio').style.display='none'; E.pausado=false; Som.musica(true);
   falar('Ancião','A cheia baixou e levou as cercas. Cada família precisa da sua terra de volta. Comece pela família de Neferu: ela tem 40 pedaços de cerca.',14); };
 objetivo(`Desenhe o terreno de <b>Neferu</b>: arraste o mouse sobre a terra escura que está piscando. A família tem <b>${CERCA_NEFERU} pedaços de cerca</b>. Cada quadradinho cercado dá 1 cesto de trigo.`);
 let ultimo=performance.now();

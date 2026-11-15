@@ -29,7 +29,8 @@
   <div id="mapa"></div>
   <div id="topo">
     <div class="painel" id="titulo-mapa"><h1>Mapa do mundo antigo</h1><p>Clique no <b>Egito</b> para começar. Novas terras se abrem conforme você aprende.</p></div>
-    <button class="sec direita" id="apagar" title="Apagar o progresso salvo neste navegador">Recomeçar do zero</button>
+    <button class="sec direita" id="b-som" style="font-size:12px;padding:4px 8px">🔊 Som</button>
+    <button class="sec" id="apagar" title="Apagar o progresso salvo neste navegador">Recomeçar do zero</button>
   </div>
   <div class="painel" id="aviso-mapa"></div>
   <div class="fundo-modal" id="fundo-modal"><div class="modal" id="modal"></div></div>
@@ -62,7 +63,9 @@ const paisesAbertos = new Set(LUGARES.filter(l=>l.aberto).flatMap(l=>l.paises));
 
 if(location.hash==='#mapa') $('inicio').style.display='none';
 function $(id){ return document.getElementById(id); }
-$('b-comecar').onclick=()=>{ $('inicio').style.display='none'; };
+$('b-comecar').onclick=()=>{ $('inicio').style.display='none'; Som.tocar('abrir'); Som.musica(true); };
+botaoSom($('b-som'));
+if(location.hash==='#mapa') document.addEventListener('pointerdown',()=>Som.musica(true),{once:true});
 if(Object.keys(prog).length) $('b-comecar').textContent='Continuar a viagem';
 
 let timerAviso=null;
@@ -108,7 +111,7 @@ function desenhar(mundo){
     g.append('circle').attr('r',14).attr('fill',l.aberto?'#e0452b':'#8b8172').attr('stroke','#fff').attr('stroke-width',3);
     g.append('text').attr('text-anchor','middle').attr('dy',5.5).attr('font-size',16).attr('font-family','Arial,sans-serif').attr('fill','#fff').attr('stroke','none').text(l.aberto?'★':'?');
     g.append('text').attr('text-anchor',l.rot[2]).attr('x',l.rot[0]).attr('y',l.rot[1]).attr('font-size',l.aberto?18:14).attr('fill',l.aberto?'#3b2a14':'#5a5048').text(l.nome);
-    const abrir=()=>{ if(l.aberto) location.href=l.pagina; else aviso(`${l.nome} ainda está coberto pela névoa. Complete o Egito para abrir novas rotas.`); };
+    const abrir=()=>{ Som.tocar('clique'); if(l.aberto) setTimeout(()=>location.href=l.pagina,120); else aviso(`${l.nome} ainda está coberto pela névoa. Complete o Egito para abrir novas rotas.`); };
     g.on('click',abrir).on('keydown',e=>{ if(e.key==='Enter'||e.key===' ') abrir(); });
   }
 }

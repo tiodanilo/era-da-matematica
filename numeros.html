@@ -49,6 +49,7 @@
     <div class="painel num" id="bolsa" title="Suas moedas de cobre"><span>👛 Bolsa</span><span id="g-bolsa"></span></div>
     <div class="painel num"><span>Celeiro</span><div class="obra" id="obra"></div></div>
     <button class="sec direita" id="b-dica">💡 Dica do escriba</button>
+    <button class="sec" id="b-som">🔊 Som</button>
     <button class="sec" id="b-vila">← Vila</button>
   </div>
   <div class="painel objetivo" id="objetivo" style="top:116px"></div>
@@ -67,11 +68,12 @@ const $ = id => document.getElementById(id);
 let timerFala=null;
 function falar(quem,txt,seg=8){ const f=$('fala'); f.querySelector('.quem').textContent=quem; f.querySelector('.txt').innerHTML=txt; f.style.display='block'; clearTimeout(timerFala); timerFala=setTimeout(()=>f.style.display='none',seg*1000); }
 function objetivo(h){ $('objetivo').innerHTML=h; }
-function abrir(h){ $('modal').innerHTML=h; $('fundo-modal').style.display='flex'; $('modal').scrollTop=0; }
+function abrir(h){ if(!modalAberto()) Som.tocar('abrir'); $('modal').innerHTML=h; $('fundo-modal').style.display='flex'; $('modal').scrollTop=0; }
 function fechar(){ $('fundo-modal').style.display='none'; }
 const modalAberto = ()=>$('fundo-modal').style.display==='flex';
-function tremer(){ const m=$('modal'); m.classList.remove('treme'); void m.offsetWidth; m.classList.add('treme'); }
+function tremer(){ Som.tocar('ruim'); const m=$('modal'); m.classList.remove('treme'); void m.offsetWidth; m.classList.add('treme'); }
 $('b-vila').onclick=()=>location.href='egito.html';
+botaoSom($('b-som'));
 
 /* ===== Estado ===== */
 const E = { licaoVista:false, cargas:0, prodT:0, bolsa:{lotus:0,rolo:0,arco:0,traco:0}, estagio:0, colocados:0,
@@ -133,8 +135,8 @@ function animarAldeoes(dt){
 }
 /* etiquetas sobre a cena (placas clicáveis) */
 const ETQ = {
-  m0: {alvo:mercadores[0], alt:60, acao:()=>vender(0)},
-  m1: {alvo:mercadores[1], alt:60, acao:()=>vender(1)},
+  m0: {alvo:mercadores[0], alt:44, acao:()=>vender(0)},
+  m1: {alvo:mercadores[1], alt:44, acao:()=>vender(1)},
   oleiro: {alvo:oleiro, alt:58, acao:()=>encomendar(), html:'🧱 Oleiro<br><small>encomendar tijolos</small>'},
   escriba: {alvo:escriba, alt:58, acao:()=>clicarEscriba(), html:'Clique em mim!'}
 };
@@ -229,7 +231,7 @@ function licao(i){
   };
 }
 function comecarJogo(){
-  fechar(); E.licaoVista=true; novasOfertas(); renderHud(); renderObjetivo();
+  fechar(); E.licaoVista=true; novasOfertas(); renderHud(); renderObjetivo(); Som.tocar('bom'); Som.musica(true);
   falar('Escriba','Vamos construir o celeiro! Os aldeões colhem o trigo. Você vende o trigo no mercado, compra tijolos do oleiro e paga com moedas de cobre. Aqui todos só entendem <b>hieróglifos</b>!',12);
 }
 
@@ -247,8 +249,9 @@ function vender(i){
   const preco=E.ofertas[i], outro=E.ofertas[1-i];
   E.cargas--; const q=partes(preco); for(const t of ORDEM) E.bolsa[t]+=q[t];
   cena.flutuar(mercadores[i].x,mercadores[i].y,`+${preco} cobres`,'#ffd09a');
-  if(outro>preco) falar('Mercador da outra barraca',`Que pena! Eu pagaria <span class="glifos">${glifosHTML(outro)}</span> por essa carga…`,6);
-  else falar('Mercador','Boa venda! Você escolheu o preço maior.',4);
+  if(outro>preco){ Som.tocar('moedas',2); cena.emitir(mercadores[i].x,mercadores[i].y,'moeda',5);
+    falar('Mercador da outra barraca',`Que pena! Eu pagaria <span class="glifos">${glifosHTML(outro)}</span> por essa carga…`,6); }
+  else { Som.tocar('moedas',6); Som.tocar('bom'); cena.emitir(mercadores[i].x,mercadores[i].y,'moeda',18); falar('Mercador','Boa venda! Você escolheu o preço maior.',4); }
   novasOfertas(); renderHud(); renderObjetivo();
 }
 
@@ -266,7 +269,7 @@ function encomendar(){
   $('b-env').onclick=()=>{
     const v=valorDe(q);
     if(v===0){ $('av').className='aviso ruim'; $('av').textContent='A tabuinha está vazia.'; tremer(); return; }
-    fechar(); E.encomendou=true; E.carroca={qtd:v,k:0,chegou:false};
+    fechar(); Som.tocar('clique'); E.encomendou=true; E.carroca={qtd:v,k:0,chegou:false};
     if(!canonico(q)) falar('Oleiro',`Entendi ${v}, mas que tabuinha cheia! Dez desenhos iguais viram um desenho maior, sabia?`,7);
     else falar('Oleiro','Encomenda recebida! Os tijolos já vão sair.',4);
     renderObjetivo();
@@ -276,7 +279,7 @@ function encomendar(){
 /* ===== Pagamento (trocar) ===== */
 let pg=null;
 function chegaramTijolos(){
-  const v=E.carroca.qtd;
+  const v=E.carroca.qtd; Som.tocar('chegou');
   pg={v, bolsa:{...E.bolsa}, pag:{lotus:0,rolo:0,arco:0,traco:0}};
   abrir(`<h2>Chegaram ${v} tijolos!</h2>
     <p>O oleiro cobra <b style="font-size:22px">${v}</b> cobres. Mova as moedas da bolsa para o pagamento. Se faltar uma moeda pequena, faça uma troca.</p>
@@ -305,14 +308,16 @@ function renderPg(){
 function pagar(){
   const pago=valorDe(pg.pag), v=pg.v, av=$('av');
   if(pago<v){ tremer(); av.className='aviso ruim'; av.textContent= valorDe(pg.bolsa)+pago<v ? `Seu cobre não dá: faltam ${v-pago-valorDe(pg.bolsa)}. Você pode devolver os tijolos e vender mais trigo.` : `O oleiro contou: faltam ${v-pago}. Precisa trocar alguma moeda?`; return; }
-  E.bolsa={...pg.bolsa}; fechar(); E.carroca=null; E.encomendou=false;
+  E.bolsa={...pg.bolsa}; fechar(); E.carroca=null; E.encomendou=false; Som.tocar('moedas',5);
   if(pago>v) falar('Oleiro',`Obrigado! Você pagou ${pago-v} a mais… e eu fico com o troco.`,6);
   colocarTijolos(v);
 }
 function colocarTijolos(v){
   E.colocados+=v; cena.flutuar(celeiro.x+1,celeiro.y+1,`+${v} tijolos`,'#ffb08a');
+  setTimeout(()=>Som.tocar('tijolo'),250); cena.emitir(celeiro.x+1,celeiro.y+1,'poeira',16);
   while(E.estagio<OBRA.length && E.colocados>=OBRA[E.estagio].precisa){
     E.colocados-=OBRA[E.estagio].precisa; const nome=OBRA[E.estagio].nome; E.estagio++;
+    setTimeout(()=>{ Som.tocar('etapa'); cena.emitir(celeiro.x+1,celeiro.y+1,'brilho',22); },700);
     if(E.estagio<OBRA.length) falar('Mestre de obras',`${nome[0].toUpperCase()+nome.slice(1)} do celeiro ficou pronta! Agora vamos para ${OBRA[E.estagio].nome}.`.replace('Os silos do celeiro ficou pronta','Os silos do celeiro ficaram prontos'),7);
   }
   if(E.estagio>=OBRA.length){ E.acabou=true; renderHud(); setTimeout(final,2500); return; }
@@ -333,7 +338,7 @@ $('b-dica').onclick=()=>{
 
 /* ===== Final ===== */
 function final(){
-  salvarProgresso('numeros');
+  salvarProgresso('numeros'); Som.tocar('vitoria'); cena.emitir(celeiro.x+1,celeiro.y+1,'confete',70);
   abrir(`<h2>O celeiro está pronto!</h2>
     <p>Você leu os preços do mercado, escreveu as encomendas e pagou o oleiro, tudo em hieróglifos. <b>Conhecimento aprendido: os números do Egito.</b></p>
     <div class="simbolos">${ORDEM.slice().reverse().map(t=>`<div class="simbolo"><span class="glifos">${HIERO[t]}</span><b>${VALOR[t]}</b><small>${NOME_SIMB[t]}</small></div>`).join('')}</div>
