@@ -253,6 +253,25 @@ class Cena {
     if(prog<0.999){ ctx.strokeStyle='#8a5a2a'; ctx.lineWidth=2; const cs=[[b.x,b.y+b.d],[b.x+b.w,b.y+b.d],[b.x+b.w,b.y]].map(([x,y])=>this.p(x,y));
       ctx.beginPath(); for(const [sx,sy] of cs){ ctx.moveTo(sx,sy); ctx.lineTo(sx,sy-60); } ctx.moveTo(cs[0][0],cs[0][1]-30); ctx.lineTo(cs[1][0],cs[1][1]-30); ctx.lineTo(cs[2][0],cs[2][1]-30); ctx.stroke(); }
   }
+  /* padaria: casa com chaminé fumegando e uma prateleira de pães na frente; prog de 0 a 1 */
+  padaria(b, prog){
+    prog = prog===undefined?1:prog; if(prog<=0) return; const ctx=this.ctx;
+    this.sombra(b); const h=8+24*prog;
+    const k=this.caixa(b,h,['#d7b98a','#b5966a','#ecd8ae']);
+    const {C,D}=k, mx=(D[0]+C[0])/2, my=(D[1]+C[1])/2;
+    this.poli([[mx-7,my-3],[mx+7,my+4],[mx+7,my-Math.min(16,h-6)],[mx-7,my-Math.min(23,h-2)]],'#4a2f16');
+    if(prog>0.6){ // chaminé
+      const t=k.up(this.p(b.x+b.w*0.75,b.y+b.d*0.3)); ctx.fillStyle='#9a6234'; ctx.fillRect(t[0]-4,t[1]-16,8,16); ctx.fillStyle='#7a4a24'; ctx.fillRect(t[0]-5,t[1]-18,10,3);
+      if(prog>=0.999 && Math.random()<0.08){ const [gx,gy]=this.inv(t[0],t[1]-22); this.particulas.push({x:t[0],y:t[1]-20,vx:(Math.random()-.5)*6,vy:-14-Math.random()*8,g:-2,vida:0,max:2.4,cor:'rgba(120,110,100,.5)',tipo:'poeira',tam:4+Math.random()*3,rot:0}); }
+    }
+    if(prog>0.8){ // prateleira com pães
+      const p0=this.p(b.x+0.2,b.y+b.d+0.25), p1=this.p(b.x+b.w-0.2,b.y+b.d+0.25);
+      ctx.strokeStyle='#6d441d'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(p0[0],p0[1]-8); ctx.lineTo(p1[0],p1[1]-8); ctx.stroke();
+      ctx.fillStyle='#c98a3a'; for(let i=0;i<5;i++){ const f=(i+0.5)/5, x=p0[0]+(p1[0]-p0[0])*f, y=p0[1]+(p1[1]-p0[1])*f; ctx.beginPath(); ctx.roundRect(x-5,y-14,10,6,3); ctx.fill(); }
+    }
+    if(prog<0.999){ ctx.strokeStyle='#8a5a2a'; ctx.lineWidth=2; const cs=[[b.x,b.y+b.d],[b.x+b.w,b.y+b.d],[b.x+b.w,b.y]].map(([x,y])=>this.p(x,y));
+      ctx.beginPath(); for(const [sx,sy] of cs){ ctx.moveTo(sx,sy); ctx.lineTo(sx,sy-44); } ctx.moveTo(cs[0][0],cs[0][1]-22); ctx.lineTo(cs[1][0],cs[1][1]-22); ctx.lineTo(cs[2][0],cs[2][1]-22); ctx.stroke(); }
+  }
   /* bode (aparece quando a cerca tem buraco) */
   bode(a){
     const ctx=this.ctx, [sx,sy0]=this.p(a.x,a.y), sy=sy0-(a.andando?Math.abs(Math.sin(this.T*12))*1.5:0), dir=a.dir||1;
